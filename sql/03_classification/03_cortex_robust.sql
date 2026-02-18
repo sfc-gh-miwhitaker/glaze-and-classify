@@ -1,7 +1,7 @@
 /*==============================================================================
 CLASSIFICATION APPROACH 3: Cortex AI_COMPLETE — Robust Pipeline
 Multi-step pipeline with:
-  - Structured output via type literals (GA)
+  - Structured JSON output via response_format schema
   - Hierarchical classification (Category > Subcategory > Attributes)
   - Confidence scoring
   - Multi-language handling built in
@@ -26,19 +26,10 @@ FROM RAW_CATEGORY_TAXONOMY;
 INSERT INTO STG_CLASSIFIED_CORTEX_ROBUST
     (product_id, detected_language, predicted_category, predicted_subcategory,
      confidence_score, attributes, raw_response, model_used)
-SELECT
-    p.product_id,
-    result:detected_language::VARCHAR           AS detected_language,
-    result:category::VARCHAR                    AS predicted_category,
-    result:subcategory::VARCHAR                 AS predicted_subcategory,
-    result:confidence::NUMBER(5,4)              AS confidence_score,
-    result:attributes                           AS attributes,
-    raw_json                                    AS raw_response,
-    'llama3.1-70b'                              AS model_used
-FROM RAW_PRODUCTS p
-CROSS JOIN TEMP_TAXONOMY_CONTEXT tx,
-    LATERAL (
-        SELECT AI_COMPLETE(
+WITH classified AS (
+    SELECT
+        p.product_id,
+        AI_COMPLETE(
             model => 'llama3.1-70b',
             prompt => CONCAT(
                 'You are an expert product classifier for an international bakery/donut company operating in 6 markets. ',
@@ -62,22 +53,41 @@ CROSS JOIN TEMP_TAXONOMY_CONTEXT tx,
                 'Language: ', p.language_code, '\n',
                 COALESCE(CONCAT('Raw category: ', p.raw_category_string, '\n'), '')
             ),
-            response_format => TYPE OBJECT(
-                detected_language   VARCHAR,
-                category            VARCHAR,
-                subcategory         VARCHAR,
-                confidence          NUMBER(5,4),
-                attributes          OBJECT(
-                    flavor      VARCHAR,
-                    topping     VARCHAR,
-                    filling     VARCHAR,
-                    coating     VARCHAR
-                )
-            )
+            response_format => {
+                'type': 'json',
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'detected_language': {'type': 'string', 'description': 'ISO language code detected'},
+                        'category': {'type': 'string', 'description': 'Top-level category from taxonomy'},
+                        'subcategory': {'type': 'string', 'description': 'Subcategory from taxonomy'},
+                        'confidence': {'type': 'number', 'description': 'Classification confidence 0.0-1.0'},
+                        'attributes': {
+                            'type': 'object',
+                            'properties': {
+                                'flavor': {'type': 'string'},
+                                'topping': {'type': 'string'},
+                                'filling': {'type': 'string'},
+                                'coating': {'type': 'string'}
+                            }
+                        }
+                    },
+                    'required': ['detected_language', 'category', 'subcategory', 'confidence']
+                }
+            }
         ) AS raw_json
-    ) llm,
-    LATERAL (
-        SELECT TRY_PARSE_JSON(llm.raw_json) AS result
-    ) parsed;
+    FROM RAW_PRODUCTS p
+    CROSS JOIN TEMP_TAXONOMY_CONTEXT tx
+)
+SELECT
+    product_id,
+    TRY_PARSE_JSON(raw_json):detected_language::VARCHAR     AS detected_language,
+    TRY_PARSE_JSON(raw_json):category::VARCHAR              AS predicted_category,
+    TRY_PARSE_JSON(raw_json):subcategory::VARCHAR           AS predicted_subcategory,
+    TRY_PARSE_JSON(raw_json):confidence::NUMBER(5,4)        AS confidence_score,
+    TRY_PARSE_JSON(raw_json):attributes                     AS attributes,
+    raw_json                                                AS raw_response,
+    'llama3.1-70b'                                          AS model_used
+FROM classified;
 
 DROP TABLE IF EXISTS TEMP_TAXONOMY_CONTEXT;
