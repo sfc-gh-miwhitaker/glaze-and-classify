@@ -54,8 +54,13 @@ EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.TOOLS.SFE_GLAZE_AND_CLASSIFY_REPO/bra
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.TOOLS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/04_cortex/01_create_semantic_view.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.TOOLS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/04_cortex/02_create_agent.sql';
 
--- 5e. SPCS Vision Service
-EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.TOOLS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/01_create_image_service.sql';
+-- 5e. SPCS Vision Service (optional — requires CREATE COMPUTE POOL privilege)
+BEGIN
+  EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.TOOLS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/01_create_image_service.sql';
+EXCEPTION
+  WHEN OTHER THEN
+    SYSTEM$LOG_INFO('Skipping SPCS vision service: ' || SQLERRM);
+END;
 
 -- 5f. Streamlit Dashboard
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.TOOLS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/06_streamlit/01_create_dashboard.sql';
