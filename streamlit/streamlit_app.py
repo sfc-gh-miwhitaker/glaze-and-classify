@@ -8,8 +8,18 @@ Side-by-side comparison of four product classification approaches:
 4. SPCS Custom Vision Model
 """
 
+from decimal import Decimal
 from snowflake.snowpark.context import get_active_session
+import pandas as pd
 import streamlit as st
+
+
+def _fix_decimals(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert Decimal columns to float so Arrow serialization works in SiS."""
+    for col in df.columns:
+        if df[col].dtype == object and df[col].apply(lambda x: isinstance(x, Decimal)).any():
+            df[col] = df[col].astype(float)
+    return df
 
 st.set_page_config(
     page_title="Glaze & Classify",
@@ -22,7 +32,7 @@ session = get_active_session()
 
 @st.cache_data(ttl=300)
 def load_accuracy_summary():
-    return session.sql("""
+    return _fix_decimals(session.sql("""
         SELECT
             market_code,
             language_code,
@@ -34,12 +44,12 @@ def load_accuracy_summary():
             avg_robust_confidence
         FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.ACCURACY_SUMMARY
         ORDER BY market_code
-    """).to_pandas()
+    """).to_pandas())
 
 
 @st.cache_data(ttl=300)
 def load_overall_accuracy():
-    return session.sql("""
+    return _fix_decimals(session.sql("""
         SELECT
             COUNT(*)                                                AS total_products,
             ROUND(AVG(trad_category_correct) * 100, 1)             AS trad_pct,
@@ -51,12 +61,12 @@ def load_overall_accuracy():
             ROUND(AVG(robust_full_correct) * 100, 1)               AS robust_full_pct,
             ROUND(AVG(vision_full_correct) * 100, 1)               AS vision_full_pct
         FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.CLASSIFICATION_COMPARISON
-    """).to_pandas()
+    """).to_pandas())
 
 
 @st.cache_data(ttl=300)
 def load_comparison_detail():
-    return session.sql("""
+    return _fix_decimals(session.sql("""
         SELECT
             product_id,
             product_name,
@@ -76,12 +86,12 @@ def load_comparison_detail():
             is_image_only
         FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.CLASSIFICATION_COMPARISON
         ORDER BY product_id
-    """).to_pandas()
+    """).to_pandas())
 
 
 @st.cache_data(ttl=300)
 def load_misclassified():
-    return session.sql("""
+    return _fix_decimals(session.sql("""
         SELECT
             product_name,
             market_code,
@@ -93,7 +103,7 @@ def load_misclassified():
         FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.CLASSIFICATION_COMPARISON
         WHERE trad_category_correct = 0
         ORDER BY market_code, product_name
-    """).to_pandas()
+    """).to_pandas())
 
 
 # -- Header --
