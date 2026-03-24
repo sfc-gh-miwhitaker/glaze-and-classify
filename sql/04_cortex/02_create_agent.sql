@@ -69,4 +69,5 @@ CREATE OR REPLACE AGENT GLAZE_CLASSIFIER_AGENT
   tool_resources:
     ProductAnalyst:
       semantic_view: "SNOWFLAKE_EXAMPLE.SEMANTIC_MODELS.SV_GLAZE_PRODUCTS"
+      warehouse: "SFE_GLAZE_AND_CLASSIFY_WH"
   $$;

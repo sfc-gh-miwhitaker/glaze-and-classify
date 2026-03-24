@@ -447,15 +447,14 @@ with tab_live:
                     "Beverages, Merchandise.\n\n"
                     f"Product: {translated}"
                 )
-                classified = session.sql("""
-                    SELECT AI_COMPLETE(
-                        model => 'claude-haiku-4-5',
-                        prompt => ?,
-                        response_format => TYPE OBJECT(
-                            category VARCHAR, subcategory VARCHAR
-                        )
-                    ) AS result
-                """, params=[prompt]).collect()[0]["RESULT"]
+                classified = session.sql(
+                    "SELECT AI_COMPLETE("
+                    "model => 'claude-haiku-4-5', "
+                    "prompt => ?, "
+                    "response_format => TYPE OBJECT(category VARCHAR, subcategory VARCHAR)"
+                    ") AS result",
+                    params=[prompt],
+                ).collect()[0]["RESULT"]
 
                 status.update(
                     label="Classification complete", state="complete", expanded=True
