@@ -1,0 +1,107 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+  Build and push the SPCS vision image to a Snowflake image repository.
+.DESCRIPTION
+  Auto-detects Podman or Docker, then builds, tags, and pushes the
+  glaze-vision container image. Sources .env.local for credentials
+  if present, otherwise prompts interactively.
+#>
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Stop'
+
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ImageName  = 'glaze-vision'
+$ImageTag   = 'latest'
+
+# Source .env.local if it exists (key=value lines, supports op read)
+$EnvFile = Join-Path $ScriptDir '.env.local'
+if (Test-Path $EnvFile) {
+    Get-Content $EnvFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith('#')) {
+            $line = $line -replace '^export\s+', ''
+            if ($line -match '^([^=]+)=(.*)$') {
+                $key = $Matches[1].Trim()
+                $val = $Matches[2].Trim().Trim('"').Trim("'")
+                # Expand $(...) subexpressions (e.g. op read)
+                if ($val -match '^\$\((.+)\)$') {
+                    $val = Invoke-Expression $Matches[1]
+                }
+                Set-Item -Path "Env:$key" -Value $val
+            }
+        }
+    }
+}
+
+# Auto-detect container runtime
+$Runtime = $null
+if (Get-Command podman -ErrorAction SilentlyContinue) {
+    $Runtime = 'podman'
+} elseif (Get-Command docker -ErrorAction SilentlyContinue) {
+    $Runtime = 'docker'
+} else {
+    Write-Error @"
+No container runtime found.
+
+Install one of:
+  Windows: winget install RedHat.Podman
+  macOS:   brew install podman
+  Linux:   sudo apt install podman (or dnf install podman)
+
+Docker also works but requires a commercial license for business use.
+"@
+}
+
+Write-Host "Using container runtime: $Runtime"
+
+# Prompt for repo URL if not set
+if (-not $env:SNOWFLAKE_IMAGE_REPO_URL) {
+    Write-Host ''
+    Write-Host 'To find your image repository URL:'
+    Write-Host '  1. Run deploy_all.sql first (it creates the image repo)'
+    Write-Host '  2. In Snowsight, run: SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;'
+    Write-Host '  3. Copy the repository_url column value'
+    Write-Host ''
+    $env:SNOWFLAKE_IMAGE_REPO_URL = Read-Host 'Snowflake image repository URL'
+}
+
+$RegistryHost = ($env:SNOWFLAKE_IMAGE_REPO_URL -split '/')[0]
+
+# Prompt for PAT if not set
+if (-not $env:SNOWFLAKE_REGISTRY_PAT) {
+    Write-Host ''
+    Write-Host 'Generate a PAT in Snowsight: User menu > Programmatic Access Tokens'
+    Write-Host ''
+    $secPat = Read-Host 'Snowflake PAT' -AsSecureString
+    $env:SNOWFLAKE_REGISTRY_PAT = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secPat)
+    )
+}
+
+$FullImageTag = "$($env:SNOWFLAKE_IMAGE_REPO_URL)/$($ImageName):$($ImageTag)"
+
+Write-Host ''
+Write-Host 'Building image...'
+& $Runtime build -t "${ImageName}:${ImageTag}" $ScriptDir
+if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+
+Write-Host "Tagging as $FullImageTag..."
+& $Runtime tag "${ImageName}:${ImageTag}" $FullImageTag
+if ($LASTEXITCODE -ne 0) { throw "Tag failed" }
+
+Write-Host "Authenticating to $RegistryHost..."
+$env:SNOWFLAKE_REGISTRY_PAT | & $Runtime login $RegistryHost `
+    --username '0sessiontoken' `
+    --password-stdin
+if ($LASTEXITCODE -ne 0) { throw "Login failed" }
+
+Write-Host 'Pushing image...'
+& $Runtime push $FullImageTag
+if ($LASTEXITCODE -ne 0) { throw "Push failed" }
+
+Write-Host ''
+Write-Host "Done. Image pushed to: $FullImageTag"
+Write-Host 'You can now run deploy_all.sql in Snowsight.'
