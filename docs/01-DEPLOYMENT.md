@@ -6,21 +6,27 @@
 - `SYSADMIN` and `ACCOUNTADMIN` role access
 - `SFE_GIT_API_INTEGRATION` already configured (shared infrastructure)
 - Cortex AI functions enabled in your region
-- **SPCS vision image pushed** (see below)
 
-## SPCS Vision Image (one-time prerequisite)
+## Quick Deploy (3 steps, ~10 minutes)
 
-The vision classification service requires a container image in your Snowflake image repository. This must be done **before** running `deploy_all.sql`.
+### Step 1 — Deploy core objects
 
-**Install a container runtime** (if needed):
+1. Open **Snowsight**
+2. Create a **New SQL Worksheet**
+3. Paste the entire contents of `deploy_all.sql`
+4. Click **Run All**
 
-| Platform | Podman (free, Apache 2.0) | Docker (license required for commercial) |
-|----------|--------------------------|------------------------------------------|
-| macOS    | `brew install podman`    | Docker Desktop                           |
-| Windows  | `winget install RedHat.Podman` | Docker Desktop                     |
-| Linux    | `sudo apt install podman` / `dnf install podman` | `sudo apt install docker.io` |
+This creates the schema, sample data, three text-based classification approaches, the Streamlit dashboard, and the Intelligence agent. The **last result** shows your image repository URL — copy it for step 2.
 
-**Run the push script:**
+### Step 2 — Push the SPCS vision image (one-time)
+
+Requires [Podman](https://podman.io/) (free, Apache 2.0) or Docker:
+
+| Platform | Install Podman |
+|----------|---------------|
+| macOS    | `brew install podman` |
+| Windows  | `winget install RedHat.Podman` |
+| Linux    | `sudo apt install podman` or `dnf install podman` |
 
 ```bash
 cd spcs/
@@ -28,21 +34,20 @@ cd spcs/
 # .\push-image.ps1     # Windows PowerShell
 ```
 
-The script will prompt for:
-1. **Image repository URL** — run `SHOW IMAGE REPOSITORIES` in Snowsight after creating the repo, copy the `repository_url` column value
-2. **PAT** — generate a Programmatic Access Token in Snowsight (user menu)
+The script prompts for:
+1. **Image repository URL** — copy from the last result of step 1
+2. **Snowflake username**
+3. **PAT** — generate a [Programmatic Access Token](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens) in Snowsight (user menu)
 
 For repeated use, create `spcs/.env.local` (gitignored) with your values. See `spcs/.env.example` for the format.
 
-## Quick Deploy (5 minutes)
+### Step 3 — Deploy SPCS vision
 
-1. Push the SPCS vision image (one-time, see above)
-2. Open **Snowsight**
-3. Create a **New SQL Worksheet**
-4. Paste the entire contents of `deploy_all.sql`
-5. Click **Run All**
+1. Create a new SQL worksheet in Snowsight
+2. Paste the entire contents of `deploy_spcs.sql`
+3. Click **Run All**
 
-The script handles everything: schema creation, sample data, classification runs, agent setup, and dashboard deployment.
+This creates the vision service, classifies all image-only products, and shows the final accuracy comparison across all four approaches.
 
 ## What Gets Created
 

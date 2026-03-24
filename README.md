@@ -5,104 +5,135 @@
 
 # Glaze & Classify
 
-> **Warning:** This demo expires on 2026-07-01. After expiration, validate against current Snowflake docs before use.
-> **No support provided.** This code is for reference only. Review, test, and modify before any production use.
+<!-- TODO: Replace with an actual screenshot of the Streamlit dashboard -->
+![Dashboard](docs/images/dashboard.png)
 
-Product classification showdown: four progressively sophisticated approaches to classifying an international bakery catalog — from brittle SQL to Cortex AI_TRANSLATE + AI_COMPLETE pipelines and custom SPCS vision models.
+Inspired by a real customer question: *"How do I translate and classify my international product catalog using only SQL?"*
+
+This project answers that question four different ways — from brittle SQL keywords to Cortex AI pipelines to a custom vision model — and compares the results side by side.
 
 **Author:** SE Community
 **Last Updated:** 2026-03-24 | **Expires:** 2026-07-01 | **Status:** ACTIVE
 
-## Quick Start
+> **No support provided.** This code is for reference only. Review, test, and modify before any production use.
+> This demo expires on 2026-07-01. After expiration, validate against current Snowflake docs before use.
 
-**1. Deploy in Snowsight:**
-Copy [`deploy_all.sql`](deploy_all.sql) into a Snowsight worksheet and click **Run All**. This deploys the schema, data, three classification approaches, the Streamlit dashboard, and the Intelligence agent. The **last result** shows your image repository URL — copy it for step 2.
+---
 
-**2. Push the SPCS vision image (one-time, requires [Podman](https://podman.io/) or Docker):**
+## The Problem
 
-| Platform | Install Podman (free, Apache 2.0) |
-|----------|----------------------------------|
-| macOS    | `brew install podman`            |
-| Windows  | `winget install RedHat.Podman`   |
-| Linux    | `sudo apt install podman` or `dnf install podman` |
+An international bakery sells 148 products across 6 markets in 5 languages. Every product needs to be classified into a consistent taxonomy of 8 categories and 24 subcategories — but the same donut has a different name in every market:
 
-The script prompts for the image repo URL (from step 1), your Snowflake username, and a PAT:
+| Market | Product Name | Language | Gold Category |
+|--------|-------------|----------|---------------|
+| US | Original Glazed Donut | English | Glazed |
+| JP | オリジナル グレーズド | Japanese | Glazed |
+| FR | Donut Glacé Original | French | Glazed |
+| MX | Dona Glaseada Original | Spanish | Glazed |
+| BR | Donut Glaceado Original | Portuguese | Glazed |
+| US | `IMG_4521.jpg` | *(none)* | Glazed |
 
-```bash
-cd spcs/
-./push-image.sh        # macOS / Linux / WSL
-# .\push-image.ps1     # Windows PowerShell
+The last row is the hardest case: some products arrive as nothing but a photograph. No name, no description, no language — just pixels.
+
+How do you classify all of them?
+
+---
+
+## The Progression
+
+### 1. Traditional SQL — the "before" state
+
+The obvious first attempt: `CASE` expressions, `LIKE` patterns, regex, and a keyword lookup table. 100+ lines of SQL that only knows English.
+
+```sql
+FROM RAW_PRODUCTS p
+INNER JOIN RAW_KEYWORD_MAP km
+    ON LOWER(p.product_name) LIKE '%' || LOWER(km.keyword) || '%'
+    AND km.language_code = 'en'   -- English only
 ```
 
-**3. Deploy SPCS vision:**
-Copy [`deploy_spcs.sql`](deploy_spcs.sql) into a Snowsight worksheet and click **Run All**. This creates the vision service and classifies all products.
+It works for "Original Glazed Donut." It returns nothing for `オリジナル グレーズド`. And it can't even attempt `IMG_4521.jpg`.
 
-**Develop with Cortex Code:**
-```bash
-git clone https://github.com/sfc-gh-miwhitaker/glaze-and-classify.git
-cd glaze-and-classify && cortex
+> [!TIP]
+> **Pattern demonstrated:** Keyword lookup with `QUALIFY ROW_NUMBER()` for deduplication — a common SQL classification pattern, shown here to illustrate its limits.
+
+### 2. Cortex Simple — translate, then classify
+
+Replace 100+ lines of keyword SQL with a single `AI_TRANSLATE()` + `AI_COMPLETE()` query. Every product name gets translated to English first, then classified by an LLM. ~15 lines of core SQL.
+
+```sql
+SELECT AI_COMPLETE(
+    model => 'llama3.3-70b',
+    prompt => CONCAT(
+        'Classify this product: ',
+        AI_TRANSLATE(p.product_name, '', 'en'),  -- any language → English
+        '\nRespond with JSON: {"category": "...", "subcategory": "..."}'
+    )
+) AS raw_text
+FROM RAW_PRODUCTS p
 ```
 
-## First Time Here?
+`オリジナル グレーズド` becomes "Original Glazed" and gets classified correctly. Every language works. But the output is unstructured free-text JSON parsed with `TRY_PARSE_JSON` — fragile in production.
 
-1. **Deploy** — Copy `deploy_all.sql` into Snowsight, click "Run All" (last result = image repo URL)
-2. **Push image** — Run `spcs/push-image.sh` with the repo URL, your username, and a PAT
-3. **Deploy SPCS** — Copy `deploy_spcs.sql` into Snowsight, click "Run All"
-4. **Explore** — Open the Streamlit dashboard to compare classification methods side-by-side
-5. **Ask** — Chat with the Intelligence agent about classification accuracy across markets
-6. **Cleanup** — Run `teardown_all.sql` when done
+> [!TIP]
+> **Pattern demonstrated:** `AI_TRANSLATE()` + `AI_COMPLETE()` with `LATERAL` — the simplest Cortex classification pattern, ideal for prototyping.
 
-## What Gets Built
+### 3. Cortex Robust — production-grade pipeline
 
-| Object | Type | Purpose |
-|--------|------|---------|
-| `SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY` | Schema | Project schema |
-| `SFE_GLAZE_AND_CLASSIFY_WH` | Warehouse | XS compute |
-| `RAW_PRODUCTS` | Table | International product catalog (6 markets, 5+ languages) |
-| `RAW_CATEGORY_TAXONOMY` | Table | Gold-standard category hierarchy |
-| `RAW_KEYWORD_MAP` | Table | Traditional keyword-to-category lookup |
-| `STG_CLASSIFIED_TRADITIONAL` | Table | SQL-based classification results |
-| `STG_CLASSIFIED_CORTEX_SIMPLE` | Table | Translate + Classify results |
-| `STG_CLASSIFIED_CORTEX_ROBUST` | Table | Robust Cortex pipeline results |
-| `STG_CLASSIFIED_VISION` | Table | SPCS image classifier results |
-| `CLASSIFICATION_COMPARISON` | View | Side-by-side accuracy comparison |
-| `SV_GLAZE_PRODUCTS` | Semantic View | Intelligence agent data layer |
-| `GLAZE_CLASSIFIER_AGENT` | Agent | Conversational product analysis |
-| `GLAZE_CLASSIFY_DASHBOARD` | Streamlit | Interactive comparison dashboard |
-| `GLAZE_VISION_SERVICE` | SPCS Service | Custom image classification model |
+Skip the translate step entirely. The LLM reads Japanese, French, Spanish, and Portuguese natively. Inject the full category taxonomy into the prompt. Force structured output with a JSON schema `response_format`. Get confidence scores, detected language, and product attributes back in a guaranteed shape.
 
-## The Four Approaches
-
-```mermaid
-journey
-    title Classification Evolution
-    section Traditional SQL
-      CASE and LIKE patterns: 3: Dev
-      Keyword lookup tables: 3: Dev
-      Breaks on non-English: 2: Dev
-    section Cortex Simple
-      AI_TRANSLATE then AI_COMPLETE: 5: Dev
-      Works across languages: 5: Cortex
-    section Cortex Robust
-      Language detection: 5: Cortex
-      Structured JSON output: 5: Cortex
-      Hierarchical classification: 5: Cortex
-    section SPCS Vision
-      Custom image classifier: 4: Dev
-      SQL-callable service: 5: Cortex
+```sql
+SELECT AI_COMPLETE(
+    model    => 'llama3.3-70b',
+    prompt   => CONCAT(
+        'Classify this product into the taxonomy below.\n\n',
+        '## Valid Taxonomy:\n', tx.taxonomy_text, '\n\n',
+        'Name: ', p.product_name, '\n',
+        COALESCE(CONCAT('Description: ', p.product_description, '\n'), '')
+    ),
+    response_format => {
+        'type': 'json',
+        'schema': {
+            'type': 'object',
+            'properties': {
+                'category':    {'type': 'string'},
+                'subcategory': {'type': 'string'},
+                'confidence':  {'type': 'number'}
+            },
+            'required': ['category', 'subcategory', 'confidence']
+        }
+    }
+) AS raw_json
 ```
 
-### 1. Traditional SQL (Baseline)
-CASE/LIKE/regex with keyword lookup tables. Works for English, breaks on Japanese katakana, fails entirely on image-only products. Requires constant maintenance as the catalog grows.
+The `response_format` with a JSON schema is the key upgrade. No more parsing free-text. The LLM is constrained to return exactly the fields you asked for, with the types you specified.
 
-### 2. Cortex Translate & Classify — Simple
-`AI_TRANSLATE()` + `AI_COMPLETE()` in a single query. Translates product names to English first, then classifies. ~15 lines of SQL. Mirrors the original customer use case: "translate then classify, using only SQL."
+> [!TIP]
+> **Pattern demonstrated:** `AI_COMPLETE()` with `response_format => {'type': 'json', 'schema': {...}}` — the production pattern for structured LLM output in Snowflake.
 
-### 3. Cortex COMPLETE — Robust
-Multi-step pipeline: language detection, structured JSON output via JSON schema response_format, hierarchical classification (Category > Subcategory > Attributes), confidence scoring, batch processing with error handling. Robust reference pattern.
+### 4. SPCS Vision — bring your own model
 
-### 4. SPCS Custom Vision Model
-Snowpark Container Services running a lightweight image classification model. Exposed as a SQL-callable service function. Shows "bring your own model" for specialized domains where general LLMs fall short.
+For `IMG_4521.jpg`, text-based approaches have nothing to work with. A custom image classification model runs inside Snowpark Container Services, exposed as a SQL-callable function:
+
+```sql
+CREATE SERVICE GLAZE_VISION_SERVICE
+  IN COMPUTE POOL SFE_GLAZE_VISION_POOL
+  FROM SPECIFICATION $$ ... $$;
+
+CREATE FUNCTION CLASSIFY_IMAGE(image_url VARCHAR)
+  RETURNS VARCHAR
+  SERVICE = GLAZE_VISION_SERVICE
+  ENDPOINT = classify
+  AS '/classify';
+
+-- Then classify like any other SQL function:
+SELECT CLASSIFY_IMAGE(image_url) FROM RAW_PRODUCTS WHERE is_image_only;
+```
+
+> [!TIP]
+> **Pattern demonstrated:** `CREATE SERVICE ... FROM SPECIFICATION` + `CREATE FUNCTION ... SERVICE = ...` — the SPCS pattern for wrapping any container as a SQL function.
+
+---
 
 ## Architecture
 
@@ -148,19 +179,63 @@ flowchart LR
     Compare --> Agent[Intelligence Agent]
 ```
 
-## Estimated Demo Costs
+---
 
-| Component | Size | Est. Credits/Run | Notes |
-|-----------|------|-----------------|-------|
+## Explore the Results
+
+After deployment, two interfaces let you dig into the comparison:
+
+- **Streamlit Dashboard** — Overall accuracy KPIs, accuracy by market/language, misclassified products, full side-by-side detail, and a live classify tool. Navigate to **Projects > Streamlit** in Snowsight.
+- **Intelligence Agent** — Ask natural language questions like *"Which products are misclassified by traditional SQL?"* or *"How does accuracy compare across languages?"* Navigate to **AI & ML > Snowflake Intelligence** in Snowsight.
+
+---
+
+<details>
+<summary><strong>Deploy (3 steps, ~10 minutes)</strong></summary>
+
+> [!IMPORTANT]
+> Requires **Enterprise** edition (for SPCS + Cortex), `SYSADMIN` + `ACCOUNTADMIN` role access, and Cortex AI enabled in your region.
+
+**Step 1 — Deploy core objects in Snowsight:**
+
+Copy [`deploy_all.sql`](deploy_all.sql) into a Snowsight worksheet and click **Run All**. This creates the schema, sample data, three classification approaches, the Streamlit dashboard, and the Intelligence agent. The **last result** shows your image repository URL — copy it for step 2.
+
+**Step 2 — Push the SPCS vision image (one-time):**
+
+Requires [Podman](https://podman.io/) (free, Apache 2.0) or Docker.
+
+| Platform | Install Podman |
+|----------|---------------|
+| macOS    | `brew install podman` |
+| Windows  | `winget install RedHat.Podman` |
+| Linux    | `sudo apt install podman` or `dnf install podman` |
+
+```bash
+cd spcs/
+./push-image.sh        # macOS / Linux / WSL
+# .\push-image.ps1     # Windows PowerShell
+```
+
+The script prompts for the image repo URL (from step 1), your Snowflake username, and a [Programmatic Access Token](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens).
+
+**Step 3 — Deploy SPCS vision:**
+
+Copy [`deploy_spcs.sql`](deploy_spcs.sql) into a Snowsight worksheet and click **Run All**. This creates the vision service and classifies all products.
+
+### Estimated Costs
+
+| Component | Size | Est. Credits | Notes |
+|-----------|------|-------------|-------|
 | Warehouse | X-SMALL | ~0.5 | Sample data load + classification |
-| Cortex AI (SwiftKV) | — | ~0.5 | ~200 products x 2 approaches (llama3.3-70b) |
+| Cortex AI | — | ~0.5 | ~148 products x 2 approaches (llama3.3-70b) |
 | SPCS Compute Pool | CPU_X64_XS | ~0.5 | Image classification service |
 | Storage | — | Minimal | <1 MB sample data |
 | **Total** | | **~1.5 credits** | Single deployment run |
 
-**Edition Required:** Enterprise (for SPCS + Cortex)
+</details>
 
-## Troubleshooting
+<details>
+<summary><strong>Troubleshooting</strong></summary>
 
 | Symptom | Fix |
 |---------|-----|
@@ -168,21 +243,28 @@ flowchart LR
 | SPCS service won't start | Ensure Enterprise edition and a compute pool exists. Check `SHOW COMPUTE POOLS`. |
 | Intelligence agent errors | Verify the semantic view `SV_GLAZE_PRODUCTS` exists and the warehouse is running. |
 | Classification results empty | Ensure `RAW_PRODUCTS` has data. Rerun the data load step if needed. |
+| `Image ... not found` | Run `spcs/push-image.sh` to build and push the container image before running `deploy_spcs.sql`. |
+| `invalid username/password` on push | Use your Snowflake username (not `0sessiontoken`) with a [Programmatic Access Token](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens). |
+
+</details>
 
 ## Cleanup
 
-Run `teardown_all.sql` in Snowsight to remove all demo objects.
+Run [`teardown_all.sql`](teardown_all.sql) in Snowsight to remove all demo objects.
 
-## Development Tools
+<details>
+<summary><strong>Development Tools</strong></summary>
 
 This project is designed for AI-pair development.
 
-- **AGENTS.md** -- Project instructions for Cortex Code and compatible AI tools
-- **.claude/skills/** -- Project-specific AI skills (Cursor + Claude Code)
-- **Cortex Code in Snowsight** -- Open this project in a Workspace for AI-assisted development
-- **Cursor** -- Open locally with Cursor for AI-pair coding
+- **AGENTS.md** — Project instructions for Cortex Code and compatible AI tools
+- **.claude/skills/** — Project-specific AI skills (Cursor + Claude Code)
+- **Cortex Code in Snowsight** — Open this project in a Workspace for AI-assisted development
+- **Cursor** — Open locally with Cursor for AI-pair coding
 
 > New to AI-pair development? See [Cortex Code docs](https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code)
+
+</details>
 
 ## Documentation
 
