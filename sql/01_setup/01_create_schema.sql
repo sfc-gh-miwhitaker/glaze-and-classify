@@ -1,6 +1,6 @@
 /*==============================================================================
 SETUP - Glaze & Classify
-Creates project schema and warehouse.
+Creates project schema, warehouse, and image repository.
 ==============================================================================*/
 
 USE ROLE SYSADMIN;
@@ -21,3 +21,6 @@ CREATE WAREHOUSE IF NOT EXISTS SFE_GLAZE_AND_CLASSIFY_WH
 
 USE SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;
 USE WAREHOUSE SFE_GLAZE_AND_CLASSIFY_WH;
+
+CREATE IMAGE REPOSITORY IF NOT EXISTS GLAZE_IMAGE_REPO
+  COMMENT = 'DEMO: Container images for Glaze & Classify vision service (Expires: 2026-07-01)';

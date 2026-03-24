@@ -60,10 +60,9 @@ Write-Host "Using container runtime: $Runtime"
 # Prompt for repo URL if not set
 if (-not $env:SNOWFLAKE_IMAGE_REPO_URL) {
     Write-Host ''
-    Write-Host 'To find your image repository URL:'
-    Write-Host '  1. Run deploy_all.sql first (it creates the image repo)'
-    Write-Host '  2. In Snowsight, run: SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;'
-    Write-Host '  3. Copy the repository_url column value'
+    Write-Host 'Paste the repository_url from the SHOW IMAGE REPOSITORIES output'
+    Write-Host 'in deploy_all.sql (step 6b). It looks like:'
+    Write-Host '  <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/glaze_and_classify/glaze_image_repo'
     Write-Host ''
     $env:SNOWFLAKE_IMAGE_REPO_URL = Read-Host 'Snowflake image repository URL'
 }

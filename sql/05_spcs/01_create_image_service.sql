@@ -1,23 +1,18 @@
 /*==============================================================================
 CLASSIFICATION APPROACH 4: SPCS Custom Vision Model (Infrastructure)
-Creates the image repository, compute pool, service, and SQL function.
+Creates the compute pool, service, and SQL function.
+
+The image repository is created during setup (01_setup/01_create_schema.sql).
+The container image must be pushed before this script runs — see README.md.
 
 The service takes ~30-90s to start after creation. Populate results with
 02_populate_vision.sql which waits for the service to become READY.
 
 Requires Enterprise edition with SPCS enabled and CREATE COMPUTE POOL privilege.
-
-PREREQUISITE: The container image must be pushed before this script runs.
-  cd spcs/ && ./push-image.sh        (macOS / Linux / WSL)
-  cd spcs\  ; .\push-image.ps1       (Windows PowerShell)
-See README.md and spcs/.env.example for configuration details.
 ==============================================================================*/
 
 USE SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;
 USE WAREHOUSE SFE_GLAZE_AND_CLASSIFY_WH;
-
-CREATE IMAGE REPOSITORY IF NOT EXISTS GLAZE_IMAGE_REPO
-  COMMENT = 'DEMO: Container images for Glaze & Classify vision service (Expires: 2026-07-01)';
 
 USE ROLE ACCOUNTADMIN;
 CREATE COMPUTE POOL IF NOT EXISTS SFE_GLAZE_VISION_POOL
@@ -29,7 +24,7 @@ CREATE COMPUTE POOL IF NOT EXISTS SFE_GLAZE_VISION_POOL
   COMMENT = 'DEMO: Compute pool for bakery image classification (Expires: 2026-07-01)';
 
 USE ROLE SYSADMIN;
-CREATE SERVICE IF NOT EXISTS SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.GLAZE_VISION_SERVICE
+CREATE OR REPLACE SERVICE SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.GLAZE_VISION_SERVICE
   IN COMPUTE POOL SFE_GLAZE_VISION_POOL
   FROM SPECIFICATION $$
   spec:

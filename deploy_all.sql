@@ -5,12 +5,11 @@ INSTRUCTIONS: Open in Snowsight → Click "Run All"
 
 Product classification showdown: traditional SQL vs Cortex AI vs SPCS vision.
 
-PREREQUISITE — SPCS Vision Image:
-  The vision service requires a container image pushed to the Snowflake image
-  repository BEFORE running this script. Run the helper script first:
-    cd spcs/ && ./push-image.sh        (macOS / Linux / WSL)
-    cd spcs\  ; .\push-image.ps1       (Windows PowerShell)
-  See README.md for details.
+SPCS Vision (optional):
+  The vision service requires a container image. After the first Run All,
+  copy the image repository URL from the SHOW IMAGE REPOSITORIES output,
+  push the image with spcs/push-image.sh, then Run All again.
+  See README.md for the full 3-step flow.
 ==============================================================================*/
 
 -- 1. SSOT: Expiration date — change ONLY here
@@ -59,34 +58,36 @@ CREATE GIT REPOSITORY IF NOT EXISTS SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CL
 ALTER GIT REPOSITORY SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO FETCH;
 
 -- 6. Execute scripts in order
--- 5a. Setup
+-- 6a. Setup (creates schema, warehouse, image repository)
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/01_setup/01_create_schema.sql';
 
--- 5b. Data model & sample data
+-- 6b. Surface image repo URL (copy this for push-image.sh)
+SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;
+
+-- 6c. Data model & sample data
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/02_data/01_create_tables.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/02_data/02_load_sample_data.sql';
 
--- 5c. Classification approaches
+-- 6d. Classification approaches
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/01_traditional_sql.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/02_cortex_simple.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/03_cortex_robust.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/04_comparison_view.sql';
 
--- 5d. SPCS Vision — infrastructure
---     Service starts async; steps 5e-5f run while the container comes up.
-EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/01_create_image_service.sql';
-
--- 5e. Cortex Intelligence (runs while SPCS service starts in the background)
+-- 6e. Cortex Intelligence
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/04_cortex/01_create_semantic_view.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/04_cortex/02_create_agent.sql';
 
--- 5f. SPCS Vision — populate (waits for service READY, then classifies)
-EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/02_populate_vision.sql';
-
--- 5g. Streamlit Dashboard
+-- 6f. Streamlit Dashboard
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/06_streamlit/01_create_dashboard.sql';
 
--- 6. Final summary (ONLY visible result in Run All)
+-- 6g. SPCS Vision — infrastructure + populate (last — safe to skip on first run)
+--     On first run this will fail if the image hasn't been pushed yet.
+--     Push the image (step 2 in README), then Run All again.
+EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/01_create_image_service.sql';
+EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/02_populate_vision.sql';
+
+-- 7. Final summary
 SELECT
     CASE
         WHEN simple_ct = 0 OR robust_ct = 0 OR vision_ct = 0
