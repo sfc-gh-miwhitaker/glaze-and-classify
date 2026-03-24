@@ -10,6 +10,7 @@ Side-by-side comparison of four product classification approaches:
 
 from snowflake.snowpark.context import get_active_session
 import altair as alt
+import json
 import pandas as pd
 import streamlit as st
 
@@ -18,6 +19,39 @@ st.set_page_config(page_title="Glaze & Classify", page_icon="🍩", layout="wide
 session = get_active_session()
 
 APPROACH_ORDER = ["Traditional SQL", "Cortex Simple", "Cortex Robust", "SPCS Vision"]
+
+APPROACH_HELP = {
+    "Traditional SQL": "Baseline — English keyword/regex matching",
+    "Cortex Simple":   "AI_TRANSLATE to English, then a single AI_COMPLETE call",
+    "Cortex Robust":   "Multi-step pipeline: translate, classify with structured JSON, confidence scoring",
+    "SPCS Vision":     "Custom vision model in Snowpark Container Services — classifies from product images",
+}
+
+IMPROVE_PROMPTS = {
+    "Traditional SQL": (
+        "Traditional SQL got {correct}/{total} correct ({pct}%). "
+        "Which non-English products are being missed and what keywords should I add to RAW_KEYWORD_MAP?"
+    ),
+    "Cortex Simple": (
+        "Cortex Simple got {correct}/{total} correct ({pct}%). "
+        "What kinds of products is the single AI_COMPLETE call misclassifying and how could the prompt be improved?"
+    ),
+    "Cortex Robust": (
+        "Cortex Robust got {correct}/{total} correct ({pct}%). "
+        "Which low-confidence predictions should I review?"
+    ),
+    "SPCS Vision": (
+        "SPCS Vision got {correct}/{total} correct ({pct}%). "
+        "Which image-only products are being misclassified?"
+    ),
+}
+
+AGENT_NAME = "SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.GLAZE_CLASSIFIER_AGENT"
+
+if "agent_messages" not in st.session_state:
+    st.session_state.agent_messages = []
+if "agent_pending" not in st.session_state:
+    st.session_state.agent_pending = None
 
 
 # ── Data loaders ────────────────────────────────────────────────────────
@@ -89,6 +123,25 @@ def load_comparison_detail():
     """).to_pandas()
 
 
+# ── Agent helper ────────────────────────────────────────────────────────
+
+def run_agent(messages):
+    request = json.dumps({
+        "messages": [
+            {"role": m["role"], "content": [{"type": "text", "text": m["content"]}]}
+            for m in messages
+        ],
+        "stream": False,
+    })
+    raw = session.sql(
+        "SELECT SNOWFLAKE.CORTEX.DATA_AGENT_RUN(?, ?) AS response",
+        params=[AGENT_NAME, request],
+    ).collect()[0]["RESPONSE"]
+    parsed = json.loads(raw)
+    parts = [c["text"] for c in parsed.get("content", []) if c.get("type") == "text"]
+    return "\n\n".join(parts) if parts else "No response from agent."
+
+
 # ── Header ──────────────────────────────────────────────────────────────
 
 st.title("🍩 Glaze & Classify")
@@ -97,8 +150,8 @@ st.markdown(
     "approaches to classifying an international bakery catalog"
 )
 
-tab_showdown, tab_market, tab_detail, tab_live = st.tabs(
-    ["The Showdown", "By Market", "Deep Dive", "Live Classify"]
+tab_showdown, tab_market, tab_detail, tab_live, tab_agent = st.tabs(
+    ["The Showdown", "By Market", "Deep Dive", "Live Classify", "Ask the Agent"]
 )
 
 
@@ -119,29 +172,39 @@ with tab_showdown:
         def _pct(val):
             return f"{val}%" if pd.notna(val) else "—"
 
-        def _frac(correct, total):
-            return f"{int(correct):,} / {total:,} correct" if pd.notna(correct) else "not yet deployed"
+        def _improve_btn(col, label, correct, total_n, pct, key):
+            """Render a fraction button that queues an agent question, or a plain caption if data is missing."""
+            if pd.notna(correct):
+                frac = f"{int(correct):,} / {total_n:,} correct"
+                if col.button(f"{frac} · 💬 improve?", key=key, use_container_width=True):
+                    st.session_state.agent_pending = IMPROVE_PROMPTS[label].format(
+                        correct=int(correct), total=total_n, pct=pct,
+                    )
+                    st.toast("Switch to the **Ask the Agent** tab to see the answer")
+            else:
+                col.caption("not yet deployed")
 
         cols = st.columns(4)
 
-        cols[0].metric(
-            "Traditional SQL", _pct(trad_pct),
-            help="Baseline — English keyword/regex matching",
-        )
-        cols[0].caption(_frac(row["TRAD_CORRECT"], total))
+        approaches = [
+            ("Traditional SQL", "TRAD_PCT",   "TRAD_CORRECT"),
+            ("Cortex Simple",   "SIMPLE_PCT", "SIMPLE_CORRECT"),
+            ("Cortex Robust",   "ROBUST_PCT", "ROBUST_CORRECT"),
+            ("SPCS Vision",     "VISION_PCT", "VISION_CORRECT"),
+        ]
 
-        for i, (label, pct_key, cnt_key) in enumerate([
-            ("Cortex Simple", "SIMPLE_PCT", "SIMPLE_CORRECT"),
-            ("Cortex Robust", "ROBUST_PCT", "ROBUST_CORRECT"),
-            ("SPCS Vision",   "VISION_PCT", "VISION_CORRECT"),
-        ]):
+        for i, (label, pct_key, cnt_key) in enumerate(approaches):
             pct = row[pct_key]
-            delta = round(pct - trad_pct, 1) if pd.notna(pct) else None
-            cols[i + 1].metric(
-                label, _pct(pct),
-                delta=f"+{delta} pp" if delta and delta > 0 else None,
-            )
-            cols[i + 1].caption(_frac(row[cnt_key], total))
+            if i == 0:
+                cols[i].metric(label, _pct(pct), help=APPROACH_HELP[label])
+            else:
+                delta = round(pct - trad_pct, 1) if pd.notna(pct) else None
+                cols[i].metric(
+                    label, _pct(pct),
+                    delta=f"+{delta} pp" if delta and delta > 0 else None,
+                    help=APPROACH_HELP[label],
+                )
+            _improve_btn(cols[i], label, row[cnt_key], total, pct, key=f"improve_{i}")
 
         st.divider()
 
@@ -189,6 +252,9 @@ with tab_showdown:
         st.divider()
 
         # ── Full-match accuracy ─────────────────────────────────────────
+        def _frac(correct, total_n):
+            return f"{int(correct):,} / {total_n:,} correct" if pd.notna(correct) else "not yet deployed"
+
         st.markdown("##### Full match — category *and* subcategory both correct")
         full_df = pd.DataFrame({
             "Approach": APPROACH_ORDER,
@@ -382,6 +448,66 @@ with tab_live:
             except Exception as e:
                 status.update(label="Classification failed", state="error")
                 st.error(str(e))
+
+
+# ── Tab 5: Ask the Agent ────────────────────────────────────────────────
+
+with tab_agent:
+    st.markdown(
+        "Ask the **Glaze & Classify Assistant** anything about products, "
+        "accuracy, markets, or how to improve classification results."
+    )
+
+    # Pick up a pending question from the "improve?" buttons on Tab 1
+    pending = st.session_state.agent_pending
+    if pending:
+        st.session_state.agent_pending = None
+        st.session_state.agent_messages = [{"role": "user", "content": pending}]
+        with st.spinner("Agent is thinking..."):
+            try:
+                answer = run_agent(st.session_state.agent_messages)
+            except Exception as e:
+                answer = f"Agent error: {e}"
+        st.session_state.agent_messages.append({"role": "assistant", "content": answer})
+
+    # Suggested question pills (shown only when chat is empty)
+    if not st.session_state.agent_messages:
+        suggestions = [
+            "Which market has the lowest accuracy?",
+            "What products did every approach get wrong?",
+            "How does accuracy differ for image-only products?",
+            "Show me low-confidence predictions",
+        ]
+        pill_cols = st.columns(len(suggestions))
+        for j, q in enumerate(suggestions):
+            if pill_cols[j].button(q, key=f"pill_{j}", use_container_width=True):
+                st.session_state.agent_messages.append({"role": "user", "content": q})
+                with st.spinner("Agent is thinking..."):
+                    try:
+                        answer = run_agent(st.session_state.agent_messages)
+                    except Exception as e:
+                        answer = f"Agent error: {e}"
+                st.session_state.agent_messages.append({"role": "assistant", "content": answer})
+                st.rerun()
+
+    # Render chat history
+    for msg in st.session_state.agent_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Chat input
+    if prompt := st.chat_input("Ask about classification accuracy, products, markets..."):
+        st.session_state.agent_messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        with st.chat_message("assistant"):
+            with st.spinner("Agent is thinking..."):
+                try:
+                    answer = run_agent(st.session_state.agent_messages)
+                except Exception as e:
+                    answer = f"Agent error: {e}"
+            st.markdown(answer)
+        st.session_state.agent_messages.append({"role": "assistant", "content": answer})
 
 
 # ── Footer ──────────────────────────────────────────────────────────────
