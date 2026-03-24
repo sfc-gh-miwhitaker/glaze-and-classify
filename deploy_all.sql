@@ -1,15 +1,13 @@
 /*==============================================================================
-DEPLOY ALL - Glaze & Classify
+DEPLOY ALL - Glaze & Classify (Step 1 of 3)
 Author: SE Community | Expires: 2026-07-01
 INSTRUCTIONS: Open in Snowsight → Click "Run All"
 
-Product classification showdown: traditional SQL vs Cortex AI vs SPCS vision.
+Deploys schema, data, three classification approaches (Traditional SQL,
+Cortex Simple, Cortex Robust), Streamlit dashboard, and Intelligence agent.
 
-SPCS Vision (optional):
-  The vision service requires a container image. After the first Run All,
-  copy the image repository URL from the SHOW IMAGE REPOSITORIES output,
-  push the image with spcs/push-image.sh, then Run All again.
-  See README.md for the full 3-step flow.
+After this completes, the LAST RESULT shows your image repository URL.
+Copy it, then follow steps 2-3 in README.md to activate SPCS vision.
 ==============================================================================*/
 
 -- 1. SSOT: Expiration date — change ONLY here
@@ -61,51 +59,28 @@ ALTER GIT REPOSITORY SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO FET
 -- 6a. Setup (creates schema, warehouse, image repository)
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/01_setup/01_create_schema.sql';
 
--- 6b. Surface image repo URL (copy this for push-image.sh)
-SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;
-
--- 6c. Data model & sample data
+-- 6b. Data model & sample data
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/02_data/01_create_tables.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/02_data/02_load_sample_data.sql';
 
--- 6d. Classification approaches
+-- 6c. Classification approaches
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/01_traditional_sql.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/02_cortex_simple.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/03_cortex_robust.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/03_classification/04_comparison_view.sql';
 
--- 6e. Cortex Intelligence
+-- 6d. Cortex Intelligence
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/04_cortex/01_create_semantic_view.sql';
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/04_cortex/02_create_agent.sql';
 
--- 6f. Streamlit Dashboard
+-- 6e. Streamlit Dashboard
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/06_streamlit/01_create_dashboard.sql';
 
--- 6g. SPCS Vision — infrastructure + populate (last — safe to skip on first run)
---     On first run this will fail if the image hasn't been pushed yet.
---     Push the image (step 2 in README), then Run All again.
-EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/01_create_image_service.sql';
-EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/05_spcs/02_populate_vision.sql';
+-- 7. Surface image repo URL — this is the LAST result visible in Run All
+SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;
 
--- 7. Final summary
 SELECT
-    CASE
-        WHEN simple_ct = 0 OR robust_ct = 0 OR vision_ct = 0
-        THEN '⚠️  DEPLOYED WITH WARNINGS — classification tables may be empty'
-        ELSE '✅ Glaze & Classify deployed successfully!'
-    END                            AS status,
-    CURRENT_TIMESTAMP()            AS completed_at,
-    products_loaded,
-    trad_ct                        AS traditional_classified,
-    simple_ct                      AS cortex_simple_classified,
-    robust_ct                      AS cortex_robust_classified,
-    vision_ct                      AS vision_classified,
-    $DEMO_EXPIRES                  AS expires
-FROM (
-    SELECT
-        (SELECT COUNT(*) FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.RAW_PRODUCTS)               AS products_loaded,
-        (SELECT COUNT(*) FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.STG_CLASSIFIED_TRADITIONAL)  AS trad_ct,
-        (SELECT COUNT(*) FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.STG_CLASSIFIED_CORTEX_SIMPLE) AS simple_ct,
-        (SELECT COUNT(*) FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.STG_CLASSIFIED_CORTEX_ROBUST) AS robust_ct,
-        (SELECT COUNT(*) FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.STG_CLASSIFIED_VISION)       AS vision_ct
-);
+    '✅ Step 1 complete — copy the URL below for push-image.sh (step 2)' AS status,
+    "repository_url" AS image_repo_url
+FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))
+WHERE "name" = 'GLAZE_IMAGE_REPO';

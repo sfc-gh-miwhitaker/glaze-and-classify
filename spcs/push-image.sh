@@ -63,7 +63,7 @@ FULL_IMAGE_TAG="${SNOWFLAKE_IMAGE_REPO_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 echo ""
 echo "Building image..."
-$RUNTIME build -t "${IMAGE_NAME}:${IMAGE_TAG}" "$SCRIPT_DIR"
+$RUNTIME build --platform linux/amd64 -t "${IMAGE_NAME}:${IMAGE_TAG}" "$SCRIPT_DIR"
 
 echo "Tagging as ${FULL_IMAGE_TAG}..."
 $RUNTIME tag "${IMAGE_NAME}:${IMAGE_TAG}" "$FULL_IMAGE_TAG"

@@ -16,7 +16,7 @@ Product classification showdown: four progressively sophisticated approaches to 
 ## Quick Start
 
 **1. Deploy in Snowsight:**
-Copy [`deploy_all.sql`](deploy_all.sql) into a Snowsight worksheet and click **Run All**. This deploys the schema, data, three classification approaches, the Streamlit dashboard, and the Intelligence agent. The SPCS vision step at the end will error on the first run — that's expected.
+Copy [`deploy_all.sql`](deploy_all.sql) into a Snowsight worksheet and click **Run All**. This deploys the schema, data, three classification approaches, the Streamlit dashboard, and the Intelligence agent. The **last result** shows your image repository URL — copy it for step 2.
 
 **2. Push the SPCS vision image (one-time, requires [Podman](https://podman.io/) or Docker):**
 
@@ -26,7 +26,7 @@ Copy [`deploy_all.sql`](deploy_all.sql) into a Snowsight worksheet and click **R
 | Windows  | `winget install RedHat.Podman`   |
 | Linux    | `sudo apt install podman` or `dnf install podman` |
 
-Copy the `repository_url` from the `SHOW IMAGE REPOSITORIES` output in step 1, then run:
+The script prompts for the image repo URL (from step 1), your Snowflake username, and a PAT:
 
 ```bash
 cd spcs/
@@ -34,8 +34,8 @@ cd spcs/
 # .\push-image.ps1     # Windows PowerShell
 ```
 
-**3. Activate SPCS vision:**
-Re-run [`deploy_all.sql`](deploy_all.sql) in Snowsight (**Run All** again). Everything is idempotent — only the SPCS service gets created this time.
+**3. Deploy SPCS vision:**
+Copy [`deploy_spcs.sql`](deploy_spcs.sql) into a Snowsight worksheet and click **Run All**. This creates the vision service and classifies all products.
 
 **Develop with Cortex Code:**
 ```bash
@@ -45,9 +45,9 @@ cd glaze-and-classify && cortex
 
 ## First Time Here?
 
-1. **Deploy** — Copy `deploy_all.sql` into Snowsight, click "Run All" (note the image repo URL in the output)
-2. **Push image** — Run `spcs/push-image.sh` with the repo URL from step 1
-3. **Activate SPCS** — Re-run `deploy_all.sql` (idempotent; only the vision service gets created)
+1. **Deploy** — Copy `deploy_all.sql` into Snowsight, click "Run All" (last result = image repo URL)
+2. **Push image** — Run `spcs/push-image.sh` with the repo URL, your username, and a PAT
+3. **Deploy SPCS** — Copy `deploy_spcs.sql` into Snowsight, click "Run All"
 4. **Explore** — Open the Streamlit dashboard to compare classification methods side-by-side
 5. **Ask** — Chat with the Intelligence agent about classification accuracy across markets
 6. **Cleanup** — Run `teardown_all.sql` when done

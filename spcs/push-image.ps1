@@ -91,7 +91,7 @@ $FullImageTag = "$($env:SNOWFLAKE_IMAGE_REPO_URL)/$($ImageName):$($ImageTag)"
 
 Write-Host ''
 Write-Host 'Building image...'
-& $Runtime build -t "${ImageName}:${ImageTag}" $ScriptDir
+& $Runtime build --platform linux/amd64 -t "${ImageName}:${ImageTag}" $ScriptDir
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 Write-Host "Tagging as $FullImageTag..."
