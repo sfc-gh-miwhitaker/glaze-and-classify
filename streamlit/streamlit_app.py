@@ -9,16 +9,42 @@ Side-by-side comparison of four product classification approaches:
 """
 
 from snowflake.snowpark.context import get_active_session
+import altair as alt
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(
-    page_title="Glaze & Classify",
-    page_icon="🍩",
-    layout="wide"
-)
+st.set_page_config(page_title="Glaze & Classify", page_icon="🍩", layout="wide")
 
 session = get_active_session()
+
+APPROACH_ORDER = ["Traditional SQL", "Cortex Simple", "Cortex Robust", "SPCS Vision"]
+
+
+# ── Data loaders ────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=300)
+def load_overall_accuracy():
+    return session.sql("""
+        SELECT
+            COUNT(*)                                                AS total_products,
+            SUM(trad_category_correct)::INT                        AS trad_correct,
+            ROUND(AVG(trad_category_correct) * 100, 1)::FLOAT     AS trad_pct,
+            SUM(simple_category_correct)::INT                      AS simple_correct,
+            ROUND(AVG(simple_category_correct) * 100, 1)::FLOAT   AS simple_pct,
+            SUM(robust_category_correct)::INT                      AS robust_correct,
+            ROUND(AVG(robust_category_correct) * 100, 1)::FLOAT   AS robust_pct,
+            SUM(vision_category_correct)::INT                      AS vision_correct,
+            ROUND(AVG(vision_category_correct) * 100, 1)::FLOAT   AS vision_pct,
+            SUM(trad_full_correct)::INT                            AS trad_full_correct,
+            ROUND(AVG(trad_full_correct) * 100, 1)::FLOAT         AS trad_full_pct,
+            SUM(simple_full_correct)::INT                          AS simple_full_correct,
+            ROUND(AVG(simple_full_correct) * 100, 1)::FLOAT       AS simple_full_pct,
+            SUM(robust_full_correct)::INT                          AS robust_full_correct,
+            ROUND(AVG(robust_full_correct) * 100, 1)::FLOAT       AS robust_full_pct,
+            SUM(vision_full_correct)::INT                          AS vision_full_correct,
+            ROUND(AVG(vision_full_correct) * 100, 1)::FLOAT       AS vision_full_pct
+        FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.CLASSIFICATION_COMPARISON
+    """).to_pandas()
 
 
 @st.cache_data(ttl=300)
@@ -35,23 +61,6 @@ def load_accuracy_summary():
             avg_robust_confidence::FLOAT   AS avg_robust_confidence
         FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.ACCURACY_SUMMARY
         ORDER BY market_code
-    """).to_pandas()
-
-
-@st.cache_data(ttl=300)
-def load_overall_accuracy():
-    return session.sql("""
-        SELECT
-            COUNT(*)                                                AS total_products,
-            ROUND(AVG(trad_category_correct) * 100, 1)::FLOAT      AS trad_pct,
-            ROUND(AVG(simple_category_correct) * 100, 1)::FLOAT    AS simple_pct,
-            ROUND(AVG(robust_category_correct) * 100, 1)::FLOAT    AS robust_pct,
-            ROUND(AVG(vision_category_correct) * 100, 1)::FLOAT    AS vision_pct,
-            ROUND(AVG(trad_full_correct) * 100, 1)::FLOAT          AS trad_full_pct,
-            ROUND(AVG(simple_full_correct) * 100, 1)::FLOAT        AS simple_full_pct,
-            ROUND(AVG(robust_full_correct) * 100, 1)::FLOAT        AS robust_full_pct,
-            ROUND(AVG(vision_full_correct) * 100, 1)::FLOAT        AS vision_full_pct
-        FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.CLASSIFICATION_COMPARISON
     """).to_pandas()
 
 
@@ -80,183 +89,297 @@ def load_comparison_detail():
     """).to_pandas()
 
 
-@st.cache_data(ttl=300)
-def load_misclassified():
-    return session.sql("""
-        SELECT
-            product_name,
-            market_code,
-            gold_category,
-            trad_category,
-            simple_category,
-            robust_category,
-            robust_confidence::FLOAT       AS robust_confidence
-        FROM SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.CLASSIFICATION_COMPARISON
-        WHERE trad_category_correct = 0
-        ORDER BY market_code, product_name
-    """).to_pandas()
+# ── Header ──────────────────────────────────────────────────────────────
 
-
-# -- Header --
 st.title("🍩 Glaze & Classify")
-st.markdown("**Product classification showdown:** four approaches to classifying an international bakery catalog")
-st.divider()
+st.markdown(
+    "**Product classification showdown:** four progressively sophisticated "
+    "approaches to classifying an international bakery catalog"
+)
 
-# -- Overall Accuracy KPIs --
-st.subheader("Overall Accuracy (Category Level)")
+tab_showdown, tab_market, tab_detail, tab_live = st.tabs(
+    ["The Showdown", "By Market", "Deep Dive", "Live Classify"]
+)
 
-overall = load_overall_accuracy()
-if not overall.empty:
-    row = overall.iloc[0]
-    cols = st.columns(5)
-    cols[0].metric("Products", f"{int(row['TOTAL_PRODUCTS']):,}")
-    cols[1].metric("Traditional SQL", f"{row['TRAD_PCT']}%")
-    cols[2].metric("Cortex Simple", f"{row['SIMPLE_PCT']}%")
-    cols[3].metric("Cortex Robust", f"{row['ROBUST_PCT']}%")
-    cols[4].metric("SPCS Vision", f"{row['VISION_PCT']}%")
 
-    st.caption("Full match (category + subcategory)")
-    cols2 = st.columns(5)
-    cols2[0].empty()
-    cols2[1].metric("Trad Full", f"{row['TRAD_FULL_PCT']}%", label_visibility="visible")
-    cols2[2].metric("Simple Full", f"{row['SIMPLE_FULL_PCT']}%", label_visibility="visible")
-    cols2[3].metric("Robust Full", f"{row['ROBUST_FULL_PCT']}%", label_visibility="visible")
-    cols2[4].metric("Vision Full", f"{row['VISION_FULL_PCT']}%", label_visibility="visible")
+# ── Tab 1: The Showdown ─────────────────────────────────────────────────
 
-st.divider()
+with tab_showdown:
+    overall = load_overall_accuracy()
+    if not overall.empty:
+        row = overall.iloc[0]
+        total = int(row["TOTAL_PRODUCTS"])
+        trad_pct = row["TRAD_PCT"]
 
-# -- Accuracy by Market --
-st.subheader("Accuracy by Market & Language")
+        st.info(
+            f"**{total:,} products** across 6 markets and 5+ languages — "
+            "watch accuracy climb as each approach gets smarter."
+        )
 
-accuracy_df = load_accuracy_summary()
-if not accuracy_df.empty:
-    chart_data = accuracy_df[["MARKET_CODE", "TRAD_ACCURACY_PCT", "SIMPLE_ACCURACY_PCT", "ROBUST_ACCURACY_PCT", "VISION_ACCURACY_PCT"]].copy()
-    chart_data = chart_data.rename(columns={
-        "MARKET_CODE": "Market",
-        "TRAD_ACCURACY_PCT": "Traditional SQL",
-        "SIMPLE_ACCURACY_PCT": "Cortex Simple",
-        "ROBUST_ACCURACY_PCT": "Cortex Robust",
-        "VISION_ACCURACY_PCT": "SPCS Vision"
-    })
-    chart_data = chart_data.set_index("Market")
-    st.bar_chart(chart_data)
+        cols = st.columns(4)
 
-    st.dataframe(
-        accuracy_df.rename(columns={
+        cols[0].metric(
+            "Traditional SQL", f"{trad_pct}%",
+            help="Baseline — English keyword/regex matching",
+        )
+        cols[0].caption(f"{int(row['TRAD_CORRECT']):,} / {total:,} correct")
+
+        for i, (label, pct_key, cnt_key) in enumerate([
+            ("Cortex Simple", "SIMPLE_PCT", "SIMPLE_CORRECT"),
+            ("Cortex Robust", "ROBUST_PCT", "ROBUST_CORRECT"),
+            ("SPCS Vision",   "VISION_PCT", "VISION_CORRECT"),
+        ]):
+            pct = row[pct_key]
+            delta = round(pct - trad_pct, 1)
+            cols[i + 1].metric(
+                label, f"{pct}%",
+                delta=f"+{delta} pp" if delta > 0 else None,
+            )
+            cols[i + 1].caption(f"{int(row[cnt_key]):,} / {total:,} correct")
+
+        st.divider()
+
+        # ── Altair grouped bar chart ────────────────────────────────────
+        accuracy_df = load_accuracy_summary()
+        if not accuracy_df.empty:
+            chart_src = accuracy_df[[
+                "MARKET_CODE", "TRAD_ACCURACY_PCT", "SIMPLE_ACCURACY_PCT",
+                "ROBUST_ACCURACY_PCT", "VISION_ACCURACY_PCT",
+            ]].rename(columns={
+                "MARKET_CODE": "Market",
+                "TRAD_ACCURACY_PCT": "Traditional SQL",
+                "SIMPLE_ACCURACY_PCT": "Cortex Simple",
+                "ROBUST_ACCURACY_PCT": "Cortex Robust",
+                "VISION_ACCURACY_PCT": "SPCS Vision",
+            })
+            melted = chart_src.melt(
+                id_vars="Market", var_name="Approach", value_name="Accuracy"
+            )
+
+            bars = (
+                alt.Chart(melted)
+                .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+                .encode(
+                    x=alt.X("Approach:N", sort=APPROACH_ORDER,
+                             axis=alt.Axis(labels=False, ticks=False, title=None)),
+                    y=alt.Y("Accuracy:Q", scale=alt.Scale(domain=[0, 100]),
+                             title="Accuracy %"),
+                    color=alt.Color("Approach:N", sort=APPROACH_ORDER,
+                                     legend=alt.Legend(orient="bottom", title=None,
+                                                       direction="horizontal")),
+                    column=alt.Column("Market:N", title=None,
+                                       header=alt.Header(labelAngle=0, labelFontSize=13)),
+                    tooltip=[
+                        alt.Tooltip("Market:N"),
+                        alt.Tooltip("Approach:N"),
+                        alt.Tooltip("Accuracy:Q", format=".1f", title="Accuracy %"),
+                    ],
+                )
+                .properties(width=100, height=320)
+                .configure_view(strokeWidth=0)
+            )
+            st.altair_chart(bars, use_container_width=False)
+
+        st.divider()
+
+        # ── Full-match accuracy ─────────────────────────────────────────
+        st.markdown("##### Full match — category *and* subcategory both correct")
+        full_df = pd.DataFrame({
+            "Approach": APPROACH_ORDER,
+            "Accuracy %": [
+                row["TRAD_FULL_PCT"], row["SIMPLE_FULL_PCT"],
+                row["ROBUST_FULL_PCT"], row["VISION_FULL_PCT"],
+            ],
+            "Correct": [
+                f"{int(row['TRAD_FULL_CORRECT']):,} / {total:,}",
+                f"{int(row['SIMPLE_FULL_CORRECT']):,} / {total:,}",
+                f"{int(row['ROBUST_FULL_CORRECT']):,} / {total:,}",
+                f"{int(row['VISION_FULL_CORRECT']):,} / {total:,}",
+            ],
+        })
+        st.dataframe(
+            full_df,
+            column_config={
+                "Accuracy %": st.column_config.ProgressColumn(
+                    min_value=0, max_value=100, format="%.1f%%",
+                ),
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
+# ── Tab 2: By Market ────────────────────────────────────────────────────
+
+with tab_market:
+    accuracy_df = load_accuracy_summary()
+    if not accuracy_df.empty:
+        display = accuracy_df.rename(columns={
             "MARKET_CODE": "Market",
             "LANGUAGE_CODE": "Language",
             "TOTAL_PRODUCTS": "Products",
             "TRAD_ACCURACY_PCT": "Traditional %",
-            "SIMPLE_ACCURACY_PCT": "Simple AI %",
-            "ROBUST_ACCURACY_PCT": "Robust AI %",
-            "VISION_ACCURACY_PCT": "Vision %",
-            "AVG_ROBUST_CONFIDENCE": "Avg Confidence"
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
+            "SIMPLE_ACCURACY_PCT": "Cortex Simple %",
+            "ROBUST_ACCURACY_PCT": "Cortex Robust %",
+            "VISION_ACCURACY_PCT": "SPCS Vision %",
+            "AVG_ROBUST_CONFIDENCE": "Avg Confidence",
+        })[[
+            "Market", "Language", "Products",
+            "Traditional %", "Cortex Simple %", "Cortex Robust %", "SPCS Vision %",
+            "Avg Confidence",
+        ]]
 
-st.divider()
+        progress_col = lambda: st.column_config.ProgressColumn(
+            min_value=0, max_value=100, format="%.1f%%",
+        )
 
-# -- Misclassified by Traditional SQL --
-st.subheader("Products Misclassified by Traditional SQL")
-st.markdown("These products show where keyword/regex approaches fail — especially non-English items and image-only products.")
+        st.dataframe(
+            display,
+            column_config={
+                "Traditional %":   progress_col(),
+                "Cortex Simple %": progress_col(),
+                "Cortex Robust %": progress_col(),
+                "SPCS Vision %":   progress_col(),
+                "Avg Confidence":  st.column_config.ProgressColumn(
+                    min_value=0, max_value=1, format="%.3f",
+                ),
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
 
-misclassified = load_misclassified()
-if not misclassified.empty:
-    market_filter = st.multiselect(
-        "Filter by market",
-        options=sorted(misclassified["MARKET_CODE"].unique()),
-        default=sorted(misclassified["MARKET_CODE"].unique())
-    )
-    filtered = misclassified[misclassified["MARKET_CODE"].isin(market_filter)]
-    st.dataframe(
-        filtered.rename(columns={
-            "PRODUCT_NAME": "Product",
-            "MARKET_CODE": "Market",
-            "GOLD_CATEGORY": "Correct Category",
-            "TRAD_CATEGORY": "SQL Predicted",
-            "SIMPLE_CATEGORY": "Simple AI",
-            "ROBUST_CATEGORY": "Robust AI",
-            "ROBUST_CONFIDENCE": "Confidence"
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-    st.metric("Total Misclassified (SQL)", len(filtered))
+        with st.expander("Why does Traditional SQL drop off?"):
+            st.markdown(
+                "Traditional SQL classification relies on English keyword "
+                "matching — `CASE WHEN product_name ILIKE '%glazed%' THEN "
+                "'Glazed'`. It works well for the **US** and **UK** markets "
+                "but falls apart on Japanese, French, Spanish, and Portuguese "
+                "product names where those keywords simply don't exist.\n\n"
+                "Cortex AI bridges the language gap: **AI_TRANSLATE** converts "
+                "every product name to English first, then **AI_COMPLETE** "
+                "classifies the translated text. The *Robust* pipeline adds "
+                "structured JSON output, confidence scores, and retry logic."
+            )
 
-st.divider()
 
-# -- Full Comparison Detail --
-st.subheader("Full Classification Detail")
+# ── Tab 3: Deep Dive ────────────────────────────────────────────────────
 
-detail = load_comparison_detail()
-if not detail.empty:
-    col_a, col_b = st.columns(2)
-    with col_a:
-        selected_market = st.selectbox("Market", ["All"] + sorted(detail["MARKET_CODE"].unique().tolist()))
-    with col_b:
-        show_only_errors = st.checkbox("Show only misclassifications", value=False)
+with tab_detail:
+    detail = load_comparison_detail()
+    if not detail.empty:
+        with st.container(border=True):
+            fc = st.columns([2, 2, 1])
+            with fc[0]:
+                mkt = st.selectbox(
+                    "Market",
+                    ["All"] + sorted(detail["MARKET_CODE"].unique().tolist()),
+                )
+            with fc[1]:
+                cat = st.selectbox(
+                    "Category",
+                    ["All"] + sorted(detail["GOLD_CATEGORY"].unique().tolist()),
+                )
+            with fc[2]:
+                errors_only = st.toggle("Errors only", value=False)
 
-    view = detail.copy()
-    if selected_market != "All":
-        view = view[view["MARKET_CODE"] == selected_market]
-    if show_only_errors:
-        view = view[
-            (view["TRAD_CATEGORY_CORRECT"] == 0) |
-            (view["SIMPLE_CATEGORY_CORRECT"] == 0) |
-            (view["ROBUST_CATEGORY_CORRECT"] == 0)
-        ]
+        view = detail.copy()
+        if mkt != "All":
+            view = view[view["MARKET_CODE"] == mkt]
+        if cat != "All":
+            view = view[view["GOLD_CATEGORY"] == cat]
+        if errors_only:
+            view = view[
+                (view["TRAD_CATEGORY_CORRECT"] == 0)
+                | (view["SIMPLE_CATEGORY_CORRECT"] == 0)
+                | (view["ROBUST_CATEGORY_CORRECT"] == 0)
+            ]
 
-    st.dataframe(
-        view[["PRODUCT_NAME", "MARKET_CODE", "GOLD_CATEGORY", "TRAD_CATEGORY",
-              "SIMPLE_CATEGORY", "ROBUST_CATEGORY", "ROBUST_CONFIDENCE",
-              "VISION_CATEGORY", "IS_IMAGE_ONLY"]].rename(columns={
+        show = view[[
+            "PRODUCT_NAME", "MARKET_CODE", "GOLD_CATEGORY",
+            "TRAD_CATEGORY", "TRAD_CATEGORY_CORRECT",
+            "SIMPLE_CATEGORY", "SIMPLE_CATEGORY_CORRECT",
+            "ROBUST_CATEGORY", "ROBUST_CONFIDENCE", "ROBUST_CATEGORY_CORRECT",
+            "VISION_CATEGORY", "VISION_CATEGORY_CORRECT",
+            "IS_IMAGE_ONLY",
+        ]].rename(columns={
             "PRODUCT_NAME": "Product",
             "MARKET_CODE": "Market",
             "GOLD_CATEGORY": "Correct",
             "TRAD_CATEGORY": "SQL",
+            "TRAD_CATEGORY_CORRECT": "SQL ✓",
             "SIMPLE_CATEGORY": "Simple AI",
+            "SIMPLE_CATEGORY_CORRECT": "Simple ✓",
             "ROBUST_CATEGORY": "Robust AI",
             "ROBUST_CONFIDENCE": "Confidence",
+            "ROBUST_CATEGORY_CORRECT": "Robust ✓",
             "VISION_CATEGORY": "Vision",
-            "IS_IMAGE_ONLY": "Image Only"
-        }),
-        use_container_width=True,
-        hide_index=True
+            "VISION_CATEGORY_CORRECT": "Vision ✓",
+            "IS_IMAGE_ONLY": "Image Only",
+        })
+
+        st.dataframe(
+            show,
+            column_config={
+                "SQL ✓":     st.column_config.CheckboxColumn(),
+                "Simple ✓":  st.column_config.CheckboxColumn(),
+                "Robust ✓":  st.column_config.CheckboxColumn(),
+                "Vision ✓":  st.column_config.CheckboxColumn(),
+                "Image Only": st.column_config.CheckboxColumn(),
+                "Confidence": st.column_config.ProgressColumn(
+                    min_value=0, max_value=1, format="%.2f",
+                ),
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption(f"Showing {len(view):,} of {len(detail):,} products")
+
+
+# ── Tab 4: Live Classify ────────────────────────────────────────────────
+
+with tab_live:
+    st.markdown(
+        "Enter a product name in **any language** to see "
+        "Cortex AI classify it in real time."
     )
 
-st.divider()
+    user_input = st.text_input(
+        "Product name", placeholder="e.g., チョコレート グレーズド リング"
+    )
 
-# -- Live Classify --
-st.subheader("Live Classify")
-st.markdown("Enter a product name to see how each approach would classify it in real-time.")
+    if user_input:
+        with st.status("Classifying with Cortex AI...", expanded=True) as status:
+            try:
+                st.write("Translating to English via `AI_TRANSLATE`...")
+                st.write("Classifying with `AI_COMPLETE` (llama3.3-70b)...")
 
-user_input = st.text_input("Product name", placeholder="e.g., チョコレート グレーズド リング")
+                result = session.sql("""
+                    SELECT AI_COMPLETE(
+                        model => 'llama3.3-70b',
+                        prompt => CONCAT(
+                            'You are a product classifier for a bakery/donut company. ',
+                            'Classify this product into exactly one category and subcategory. ',
+                            'Categories: Glazed, Frosted, Filled, Cake, Specialty, Seasonal, Beverages, Merchandise. ',
+                            'Respond ONLY with JSON: {"category": "...", "subcategory": "..."}',
+                            '\n\nProduct name (translated): ',
+                            AI_TRANSLATE(?, '', 'en')
+                        )
+                    ) AS result
+                """, params=[user_input]).to_pandas()
 
-if user_input:
-    with st.spinner("Translating & classifying with Cortex AI..."):
-        try:
-            result = session.sql("""
-                SELECT AI_COMPLETE(
-                    model => 'llama3.3-70b',
-                    prompt => CONCAT(
-                        'You are a product classifier for a bakery/donut company. ',
-                        'Classify this product into exactly one category and subcategory. ',
-                        'Categories: Glazed, Frosted, Filled, Cake, Specialty, Seasonal, Beverages, Merchandise. ',
-                        'Respond ONLY with JSON: {"category": "...", "subcategory": "..."}',
-                        '\n\nProduct name (translated): ',
-                        AI_TRANSLATE(?, '', 'en')
-                    )
-                ) AS result
-            """, params=[user_input]).to_pandas()
+                status.update(
+                    label="Classification complete", state="complete", expanded=True
+                )
+                if not result.empty:
+                    with st.container(border=True):
+                        st.json(result.iloc[0]["RESULT"])
+            except Exception as e:
+                status.update(label="Classification failed", state="error")
+                st.error(str(e))
 
-            if not result.empty:
-                st.json(result.iloc[0]["RESULT"])
-        except Exception as e:
-            st.error(f"Classification failed: {e}")
 
-# -- Footer --
+# ── Footer ──────────────────────────────────────────────────────────────
+
 st.divider()
 st.caption(
     "**Glaze & Classify** | SE Community | "
