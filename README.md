@@ -176,6 +176,7 @@ flowchart LR
     ServiceFn --> Compare
 
     Compare --> Dashboard[Streamlit Dashboard]
+    Compare --> Notebook[Notebook Explorer]
     Compare --> Agent[Intelligence Agent]
 ```
 
@@ -183,9 +184,10 @@ flowchart LR
 
 ## Explore the Results
 
-After deployment, two interfaces let you dig into the comparison:
+After deployment, three interfaces let you dig into the comparison:
 
-- **Streamlit Dashboard** — Overall accuracy KPIs, accuracy by market/language, misclassified products, full side-by-side detail, and a live classify tool. Navigate to **Projects > Streamlit** in Snowsight.
+- **Streamlit Dashboard** — Overall accuracy KPIs, accuracy by market/language, and full side-by-side comparison detail. Navigate to **Projects > Streamlit** in Snowsight.
+- **Notebook Explorer** — Translate and classify any product name with `AI_TRANSLATE` + `AI_COMPLETE`, and ask the Intelligence Agent questions interactively. Navigate to **Projects > Notebooks** in Snowsight.
 - **Intelligence Agent** — Ask natural language questions like *"Which products are misclassified by traditional SQL?"* or *"How does accuracy compare across languages?"* Navigate to **AI & ML > Snowflake Intelligence** in Snowsight.
 
 ---

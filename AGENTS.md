@@ -7,7 +7,8 @@ Product classification showdown: four progressively sophisticated approaches to 
 - `deploy_spcs.sql` -- Step 3: Deploy SPCS vision (Run All in Snowsight)
 - `teardown_all.sql` -- Complete cleanup
 - `sql/` -- Individual SQL scripts (numbered)
-- `streamlit/` -- Streamlit dashboard source
+- `streamlit/` -- Streamlit dashboard source (metrics, charts, comparison tables)
+- `notebook/` -- Snowflake Notebook for interactive classify + agent Q&A
 - `spcs/` -- Snowpark Container Services vision model (step 2: push-image.sh)
 - `diagrams/` -- Architecture diagrams (Mermaid)
 

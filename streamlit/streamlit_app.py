@@ -10,7 +10,6 @@ Side-by-side comparison of four product classification approaches:
 
 from snowflake.snowpark.context import get_active_session
 import altair as alt
-import json
 import pandas as pd
 import streamlit as st
 
@@ -26,32 +25,6 @@ APPROACH_HELP = {
     "Cortex Robust":   "Multi-step pipeline: translate, classify with structured JSON, confidence scoring",
     "SPCS Vision":     "Custom vision model in Snowpark Container Services — classifies from product images",
 }
-
-IMPROVE_PROMPTS = {
-    "Traditional SQL": (
-        "Traditional SQL got {correct}/{total} correct ({pct}%). "
-        "Which non-English products are being missed and what keywords should I add to RAW_KEYWORD_MAP?"
-    ),
-    "Cortex Simple": (
-        "Cortex Simple got {correct}/{total} correct ({pct}%). "
-        "What kinds of products is the single AI_COMPLETE call misclassifying and how could the prompt be improved?"
-    ),
-    "Cortex Robust": (
-        "Cortex Robust got {correct}/{total} correct ({pct}%). "
-        "Which low-confidence predictions should I review?"
-    ),
-    "SPCS Vision": (
-        "SPCS Vision got {correct}/{total} correct ({pct}%). "
-        "Which image-only products are being misclassified?"
-    ),
-}
-
-AGENT_NAME = "SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY.GLAZE_CLASSIFIER_AGENT"
-
-if "agent_messages" not in st.session_state:
-    st.session_state.agent_messages = []
-if "agent_pending" not in st.session_state:
-    st.session_state.agent_pending = None
 
 
 # ── Data loaders ────────────────────────────────────────────────────────
@@ -123,33 +96,6 @@ def load_comparison_detail():
     """).to_pandas()
 
 
-# ── Agent helper ────────────────────────────────────────────────────────
-
-def run_agent(messages):
-    request = json.dumps({
-        "messages": [
-            {"role": m["role"], "content": [{"type": "text", "text": m["content"]}]}
-            for m in messages
-        ],
-        "stream": False,
-    })
-    raw = session.sql(
-        "SELECT SNOWFLAKE.CORTEX.DATA_AGENT_RUN(?, ?) AS response",
-        params=[AGENT_NAME, request],
-    ).collect()[0]["RESPONSE"]
-
-    parsed = json.loads(raw) if isinstance(raw, str) else raw
-
-    parts = [c["text"] for c in parsed.get("content", []) if c.get("type") == "text"]
-    if parts:
-        return "\n\n".join(parts)
-
-    return (
-        "Agent responded but produced no text output. "
-        f"Raw response:\n```json\n{json.dumps(parsed, indent=2, default=str)}\n```"
-    )
-
-
 # ── Header ──────────────────────────────────────────────────────────────
 
 st.title("🍩 Glaze & Classify")
@@ -158,8 +104,8 @@ st.markdown(
     "approaches to classifying an international bakery catalog"
 )
 
-tab_showdown, tab_market, tab_detail, tab_live, tab_agent = st.tabs(
-    ["The Showdown", "By Market", "Deep Dive", "Live Classify", "Ask the Agent"]
+tab_showdown, tab_market, tab_detail = st.tabs(
+    ["The Showdown", "By Market", "Deep Dive"]
 )
 
 
@@ -180,17 +126,8 @@ with tab_showdown:
         def _pct(val):
             return f"{val}%" if pd.notna(val) else "—"
 
-        def _improve_btn(col, label, correct, total_n, pct, key):
-            """Render a fraction button that queues an agent question, or a plain caption if data is missing."""
-            if pd.notna(correct):
-                frac = f"{int(correct):,} / {total_n:,} correct"
-                if col.button(f"{frac} · 💬 improve?", key=key, use_container_width=True):
-                    st.session_state.agent_pending = IMPROVE_PROMPTS[label].format(
-                        correct=int(correct), total=total_n, pct=pct,
-                    )
-                    st.toast("Switch to the **Ask the Agent** tab to see the answer")
-            else:
-                col.caption("not yet deployed")
+        def _frac(correct, total_n):
+            return f"{int(correct):,} / {total_n:,} correct" if pd.notna(correct) else "not yet deployed"
 
         cols = st.columns(4)
 
@@ -216,7 +153,7 @@ with tab_showdown:
                     delta=f"+{delta} pp" if delta and delta > 0 else None,
                     help=APPROACH_HELP[label],
                 )
-            _improve_btn(cols[i], label, row[cnt_key], total, pct, key=f"improve_{i}")
+            cols[i].caption(_frac(row[cnt_key], total))
 
         st.divider()
 
@@ -264,9 +201,6 @@ with tab_showdown:
         st.divider()
 
         # ── Full-match accuracy ─────────────────────────────────────────
-        def _frac(correct, total_n):
-            return f"{int(correct):,} / {total_n:,} correct" if pd.notna(correct) else "not yet deployed"
-
         st.markdown("##### Full match — category *and* subcategory both correct")
         full_df = pd.DataFrame({
             "Approach": APPROACH_ORDER,
@@ -417,114 +351,6 @@ with tab_detail:
             hide_index=True,
         )
         st.caption(f"Showing {len(view):,} of {len(detail):,} products")
-
-
-# ── Tab 4: Live Classify ────────────────────────────────────────────────
-
-with tab_live:
-    st.markdown(
-        "Enter a product name in **any language** to see "
-        "Cortex AI classify it in real time."
-    )
-
-    user_input = st.text_input(
-        "Product name", placeholder="e.g., チョコレート グレーズド リング"
-    )
-
-    if user_input:
-        with st.status("Classifying with Cortex AI...", expanded=True) as status:
-            try:
-                st.write("Translating to English via `AI_TRANSLATE`...")
-                translated = session.sql(
-                    "SELECT AI_TRANSLATE(?, '', 'en') AS translated",
-                    params=[user_input],
-                ).collect()[0]["TRANSLATED"]
-
-                st.write(f"Classifying **{translated}** with `AI_COMPLETE` (claude-haiku-4-5)...")
-                prompt = (
-                    "Classify this bakery product into exactly one category and subcategory. "
-                    "Categories: Glazed, Frosted, Filled, Cake, Specialty, Seasonal, "
-                    "Beverages, Merchandise.\n\n"
-                    f"Product: {translated}"
-                )
-                classified = session.sql(
-                    "SELECT AI_COMPLETE("
-                    "model => 'claude-haiku-4-5', "
-                    "prompt => ?, "
-                    "response_format => TYPE OBJECT(category VARCHAR, subcategory VARCHAR)"
-                    ") AS result",
-                    params=[prompt],
-                ).collect()[0]["RESULT"]
-
-                status.update(
-                    label="Classification complete", state="complete", expanded=True
-                )
-                with st.container(border=True):
-                    st.markdown(f"**Translated:** {translated}")
-                    st.json(classified)
-            except Exception as e:
-                status.update(label="Classification failed", state="error")
-                st.error(str(e))
-
-
-# ── Tab 5: Ask the Agent ────────────────────────────────────────────────
-
-with tab_agent:
-    st.markdown(
-        "Ask the **Glaze & Classify Assistant** anything about products, "
-        "accuracy, markets, or how to improve classification results."
-    )
-
-    # Pick up a pending question from the "improve?" buttons on Tab 1
-    pending = st.session_state.agent_pending
-    if pending:
-        st.session_state.agent_pending = None
-        st.session_state.agent_messages = [{"role": "user", "content": pending}]
-        with st.spinner("Agent is thinking..."):
-            try:
-                answer = run_agent(st.session_state.agent_messages)
-            except Exception as e:
-                answer = f"Agent error: {e}"
-        st.session_state.agent_messages.append({"role": "assistant", "content": answer})
-
-    # Suggested question pills (shown only when chat is empty)
-    if not st.session_state.agent_messages:
-        suggestions = [
-            "Which market has the lowest accuracy?",
-            "What products did every approach get wrong?",
-            "How does accuracy differ for image-only products?",
-            "Show me low-confidence predictions",
-        ]
-        pill_cols = st.columns(len(suggestions))
-        for j, q in enumerate(suggestions):
-            if pill_cols[j].button(q, key=f"pill_{j}", use_container_width=True):
-                st.session_state.agent_messages.append({"role": "user", "content": q})
-                with st.spinner("Agent is thinking..."):
-                    try:
-                        answer = run_agent(st.session_state.agent_messages)
-                    except Exception as e:
-                        answer = f"Agent error: {e}"
-                st.session_state.agent_messages.append({"role": "assistant", "content": answer})
-                st.rerun()
-
-    # Render chat history
-    for msg in st.session_state.agent_messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    # Chat input
-    if prompt := st.chat_input("Ask about classification accuracy, products, markets..."):
-        st.session_state.agent_messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        with st.chat_message("assistant"):
-            with st.spinner("Agent is thinking..."):
-                try:
-                    answer = run_agent(st.session_state.agent_messages)
-                except Exception as e:
-                    answer = f"Agent error: {e}"
-            st.markdown(answer)
-        st.session_state.agent_messages.append({"role": "assistant", "content": answer})
 
 
 # ── Footer ──────────────────────────────────────────────────────────────
