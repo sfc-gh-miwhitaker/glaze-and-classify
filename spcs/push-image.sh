@@ -33,8 +33,9 @@ echo "Using container runtime: $RUNTIME"
 # Prompt for repo URL if not set
 if [[ -z "${SNOWFLAKE_IMAGE_REPO_URL:-}" ]]; then
   echo ""
-  echo "Paste the repository_url from the SHOW IMAGE REPOSITORIES output"
-  echo "in deploy_all.sql (step 6b). It looks like:"
+  echo "To get your image repository URL, run this in Snowsight:"
+  echo "  SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;"
+  echo "Then copy the repository_url column value. It looks like:"
   echo "  <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/glaze_and_classify/glaze_image_repo"
   echo ""
   read -rp "Snowflake image repository URL: " SNOWFLAKE_IMAGE_REPO_URL
@@ -42,6 +43,12 @@ fi
 
 # Extract the registry host (everything before the first /)
 REGISTRY_HOST="${SNOWFLAKE_IMAGE_REPO_URL%%/*}"
+
+# Prompt for username if not set
+if [[ -z "${SNOWFLAKE_USERNAME:-}" ]]; then
+  echo ""
+  read -rp "Snowflake username: " SNOWFLAKE_USERNAME
+fi
 
 # Prompt for PAT if not set
 if [[ -z "${SNOWFLAKE_REGISTRY_PAT:-}" ]]; then
@@ -63,7 +70,7 @@ $RUNTIME tag "${IMAGE_NAME}:${IMAGE_TAG}" "$FULL_IMAGE_TAG"
 
 echo "Authenticating to ${REGISTRY_HOST}..."
 echo "$SNOWFLAKE_REGISTRY_PAT" | $RUNTIME login "$REGISTRY_HOST" \
-  --username "0sessiontoken" \
+  --username "$SNOWFLAKE_USERNAME" \
   --password-stdin
 
 echo "Pushing image..."

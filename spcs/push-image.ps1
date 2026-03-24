@@ -60,14 +60,21 @@ Write-Host "Using container runtime: $Runtime"
 # Prompt for repo URL if not set
 if (-not $env:SNOWFLAKE_IMAGE_REPO_URL) {
     Write-Host ''
-    Write-Host 'Paste the repository_url from the SHOW IMAGE REPOSITORIES output'
-    Write-Host 'in deploy_all.sql (step 6b). It looks like:'
+    Write-Host 'To get your image repository URL, run this in Snowsight:'
+    Write-Host '  SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;'
+    Write-Host 'Then copy the repository_url column value. It looks like:'
     Write-Host '  <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/glaze_and_classify/glaze_image_repo'
     Write-Host ''
     $env:SNOWFLAKE_IMAGE_REPO_URL = Read-Host 'Snowflake image repository URL'
 }
 
 $RegistryHost = ($env:SNOWFLAKE_IMAGE_REPO_URL -split '/')[0]
+
+# Prompt for username if not set
+if (-not $env:SNOWFLAKE_USERNAME) {
+    Write-Host ''
+    $env:SNOWFLAKE_USERNAME = Read-Host 'Snowflake username'
+}
 
 # Prompt for PAT if not set
 if (-not $env:SNOWFLAKE_REGISTRY_PAT) {
@@ -93,7 +100,7 @@ if ($LASTEXITCODE -ne 0) { throw "Tag failed" }
 
 Write-Host "Authenticating to $RegistryHost..."
 $env:SNOWFLAKE_REGISTRY_PAT | & $Runtime login $RegistryHost `
-    --username '0sessiontoken' `
+    --username $env:SNOWFLAKE_USERNAME `
     --password-stdin
 if ($LASTEXITCODE -ne 0) { throw "Login failed" }
 
