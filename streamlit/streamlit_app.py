@@ -137,9 +137,17 @@ def run_agent(messages):
         "SELECT SNOWFLAKE.CORTEX.DATA_AGENT_RUN(?, ?) AS response",
         params=[AGENT_NAME, request],
     ).collect()[0]["RESPONSE"]
-    parsed = json.loads(raw)
+
+    parsed = json.loads(raw) if isinstance(raw, str) else raw
+
     parts = [c["text"] for c in parsed.get("content", []) if c.get("type") == "text"]
-    return "\n\n".join(parts) if parts else "No response from agent."
+    if parts:
+        return "\n\n".join(parts)
+
+    return (
+        "Agent responded but produced no text output. "
+        f"Raw response:\n```json\n{json.dumps(parsed, indent=2, default=str)}\n```"
+    )
 
 
 # ── Header ──────────────────────────────────────────────────────────────
@@ -196,7 +204,11 @@ with tab_showdown:
         for i, (label, pct_key, cnt_key) in enumerate(approaches):
             pct = row[pct_key]
             if i == 0:
-                cols[i].metric(label, _pct(pct), help=APPROACH_HELP[label])
+                cols[i].metric(
+                    label, _pct(pct),
+                    delta="baseline", delta_color="off",
+                    help=APPROACH_HELP[label],
+                )
             else:
                 delta = round(pct - trad_pct, 1) if pd.notna(pct) else None
                 cols[i].metric(
@@ -423,28 +435,34 @@ with tab_live:
         with st.status("Classifying with Cortex AI...", expanded=True) as status:
             try:
                 st.write("Translating to English via `AI_TRANSLATE`...")
-                st.write("Classifying with `AI_COMPLETE` (llama3.3-70b)...")
+                translated = session.sql(
+                    "SELECT AI_TRANSLATE(?, '', 'en') AS translated",
+                    params=[user_input],
+                ).collect()[0]["TRANSLATED"]
 
-                result = session.sql("""
+                st.write(f"Classifying **{translated}** with `AI_COMPLETE` (claude-haiku-4-5)...")
+                prompt = (
+                    "Classify this bakery product into exactly one category and subcategory. "
+                    "Categories: Glazed, Frosted, Filled, Cake, Specialty, Seasonal, "
+                    "Beverages, Merchandise.\n\n"
+                    f"Product: {translated}"
+                )
+                classified = session.sql("""
                     SELECT AI_COMPLETE(
-                        model => 'llama3.3-70b',
-                        prompt => CONCAT(
-                            'You are a product classifier for a bakery/donut company. ',
-                            'Classify this product into exactly one category and subcategory. ',
-                            'Categories: Glazed, Frosted, Filled, Cake, Specialty, Seasonal, Beverages, Merchandise. ',
-                            'Respond ONLY with JSON: {"category": "...", "subcategory": "..."}',
-                            '\n\nProduct name (translated): ',
-                            AI_TRANSLATE(?, '', 'en')
+                        model => 'claude-haiku-4-5',
+                        prompt => ?,
+                        response_format => TYPE OBJECT(
+                            category VARCHAR, subcategory VARCHAR
                         )
                     ) AS result
-                """, params=[user_input]).to_pandas()
+                """, params=[prompt]).collect()[0]["RESULT"]
 
                 status.update(
                     label="Classification complete", state="complete", expanded=True
                 )
-                if not result.empty:
-                    with st.container(border=True):
-                        st.json(result.iloc[0]["RESULT"])
+                with st.container(border=True):
+                    st.markdown(f"**Translated:** {translated}")
+                    st.json(classified)
             except Exception as e:
                 status.update(label="Classification failed", state="error")
                 st.error(str(e))
