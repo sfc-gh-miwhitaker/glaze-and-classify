@@ -116,13 +116,19 @@ with tab_showdown:
             "watch accuracy climb as each approach gets smarter."
         )
 
+        def _pct(val):
+            return f"{val}%" if pd.notna(val) else "—"
+
+        def _frac(correct, total):
+            return f"{int(correct):,} / {total:,} correct" if pd.notna(correct) else "not yet deployed"
+
         cols = st.columns(4)
 
         cols[0].metric(
-            "Traditional SQL", f"{trad_pct}%",
+            "Traditional SQL", _pct(trad_pct),
             help="Baseline — English keyword/regex matching",
         )
-        cols[0].caption(f"{int(row['TRAD_CORRECT']):,} / {total:,} correct")
+        cols[0].caption(_frac(row["TRAD_CORRECT"], total))
 
         for i, (label, pct_key, cnt_key) in enumerate([
             ("Cortex Simple", "SIMPLE_PCT", "SIMPLE_CORRECT"),
@@ -130,12 +136,12 @@ with tab_showdown:
             ("SPCS Vision",   "VISION_PCT", "VISION_CORRECT"),
         ]):
             pct = row[pct_key]
-            delta = round(pct - trad_pct, 1)
+            delta = round(pct - trad_pct, 1) if pd.notna(pct) else None
             cols[i + 1].metric(
-                label, f"{pct}%",
-                delta=f"+{delta} pp" if delta > 0 else None,
+                label, _pct(pct),
+                delta=f"+{delta} pp" if delta and delta > 0 else None,
             )
-            cols[i + 1].caption(f"{int(row[cnt_key]):,} / {total:,} correct")
+            cols[i + 1].caption(_frac(row[cnt_key], total))
 
         st.divider()
 
@@ -191,10 +197,10 @@ with tab_showdown:
                 row["ROBUST_FULL_PCT"], row["VISION_FULL_PCT"],
             ],
             "Correct": [
-                f"{int(row['TRAD_FULL_CORRECT']):,} / {total:,}",
-                f"{int(row['SIMPLE_FULL_CORRECT']):,} / {total:,}",
-                f"{int(row['ROBUST_FULL_CORRECT']):,} / {total:,}",
-                f"{int(row['VISION_FULL_CORRECT']):,} / {total:,}",
+                _frac(row["TRAD_FULL_CORRECT"], total),
+                _frac(row["SIMPLE_FULL_CORRECT"], total),
+                _frac(row["ROBUST_FULL_CORRECT"], total),
+                _frac(row["VISION_FULL_CORRECT"], total),
             ],
         })
         st.dataframe(
