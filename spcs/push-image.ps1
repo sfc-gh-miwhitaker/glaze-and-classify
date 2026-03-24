@@ -60,10 +60,8 @@ Write-Host "Using container runtime: $Runtime"
 # Prompt for repo URL if not set
 if (-not $env:SNOWFLAKE_IMAGE_REPO_URL) {
     Write-Host ''
-    Write-Host 'To get your image repository URL, run this in Snowsight:'
-    Write-Host '  SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;'
-    Write-Host 'Then copy the repository_url column value. It looks like:'
-    Write-Host '  <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/glaze_and_classify/glaze_image_repo'
+    Write-Host 'Copy the image_repo_url from the last result of deploy_all.sql (step 1).'
+    Write-Host 'It looks like: <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/glaze_and_classify/glaze_image_repo'
     Write-Host ''
     $env:SNOWFLAKE_IMAGE_REPO_URL = Read-Host 'Snowflake image repository URL'
 }
@@ -110,4 +108,4 @@ if ($LASTEXITCODE -ne 0) { throw "Push failed" }
 
 Write-Host ''
 Write-Host "Done. Image pushed to: $FullImageTag"
-Write-Host 'You can now run deploy_all.sql in Snowsight.'
+Write-Host 'You can now run deploy_spcs.sql in Snowsight (step 3).'

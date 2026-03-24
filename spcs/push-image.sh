@@ -33,10 +33,8 @@ echo "Using container runtime: $RUNTIME"
 # Prompt for repo URL if not set
 if [[ -z "${SNOWFLAKE_IMAGE_REPO_URL:-}" ]]; then
   echo ""
-  echo "To get your image repository URL, run this in Snowsight:"
-  echo "  SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;"
-  echo "Then copy the repository_url column value. It looks like:"
-  echo "  <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/glaze_and_classify/glaze_image_repo"
+  echo "Copy the image_repo_url from the last result of deploy_all.sql (step 1)."
+  echo "It looks like: <orgname>-<acctname>.registry.snowflakecomputing.com/snowflake_example/glaze_and_classify/glaze_image_repo"
   echo ""
   read -rp "Snowflake image repository URL: " SNOWFLAKE_IMAGE_REPO_URL
 fi
@@ -78,4 +76,4 @@ $RUNTIME push "$FULL_IMAGE_TAG"
 
 echo ""
 echo "Done. Image pushed to: ${FULL_IMAGE_TAG}"
-echo "You can now run deploy_all.sql in Snowsight."
+echo "You can now run deploy_spcs.sql in Snowsight (step 3)."

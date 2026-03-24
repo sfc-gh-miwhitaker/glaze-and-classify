@@ -76,11 +76,12 @@ EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO
 -- 6e. Streamlit Dashboard
 EXECUTE IMMEDIATE FROM '@SNOWFLAKE_EXAMPLE.GIT_REPOS.SFE_GLAZE_AND_CLASSIFY_REPO/branches/main/sql/06_streamlit/01_create_dashboard.sql';
 
--- 7. Surface image repo URL — this is the LAST result visible in Run All
+-- 7. LAST RESULT — copy the URL for push-image.sh (step 2)
 SHOW IMAGE REPOSITORIES IN SCHEMA SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY;
+SET image_repo_qid = LAST_QUERY_ID();
 
 SELECT
     '✅ Step 1 complete — copy the URL below for push-image.sh (step 2)' AS status,
-    "repository_url" AS image_repo_url
-FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))
-WHERE "name" = 'GLAZE_IMAGE_REPO';
+    $5 AS image_repo_url
+FROM TABLE(RESULT_SCAN($image_repo_qid))
+WHERE $2 = 'GLAZE_IMAGE_REPO';
