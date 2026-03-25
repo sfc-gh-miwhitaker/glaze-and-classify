@@ -17,9 +17,9 @@ Navigate to **Projects > Notebooks** in Snowsight and open **Glaze Classify Expl
 - **Live Classify** — Enter any product name in any language, run the cell, and see Cortex translate and classify it with structured JSON output
 - **Raw SQL versions** — Copy-pasteable SQL equivalents for embedding in pipelines
 
-### Intelligence Agent
+### Intelligence Agent — *"What are the results?"*
 
-Navigate to **AI & ML > Snowflake Intelligence** in Snowsight. The **Glaze & Classify Assistant** can answer questions like:
+Navigate to **AI & ML > Snowflake Intelligence** in Snowsight. The **Glaze & Classify Assistant** answers questions about the classification data:
 
 - "What is the overall accuracy of each classification approach?"
 - "Which products are misclassified by the traditional SQL approach?"
@@ -27,6 +27,18 @@ Navigate to **AI & ML > Snowflake Intelligence** in Snowsight. The **Glaze & Cla
 - "Show me all seasonal products in the Japan market"
 - "Which approach works best for image-only products?"
 - "What are the low-confidence predictions from the robust pipeline?"
+
+### Cortex Code — *"How do I improve?"*
+
+Open this repository in a **Workspace** (**Projects > Workspaces**) and use [Cortex Code](https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code) for optimization and development questions:
+
+- "How can I improve the robust classification prompt for better accuracy?"
+- "What would it cost to switch from llama3.3-70b to a larger model?"
+- "Suggest a better response_format schema for edge cases"
+- "How do I add a new market to the pipeline?"
+- "Optimize the CLASSIFICATION_COMPARISON view for faster queries"
+
+Cortex Code has access to the project code, Snowflake documentation, and your account's usage data — making it the right tool for "how to improve" and "what does it cost" questions.
 
 ### Direct SQL
 
@@ -74,4 +86,4 @@ When presenting this demo, walk through the approaches in order:
 
 4. **SPCS Vision** — Show the container service pattern. "When you need a specialized model that goes beyond what LLMs can do."
 
-5. **Compare** — Use the Streamlit dashboard, the Notebook Explorer, or the Intelligence agent to explore the results. Let the audience ask their own questions.
+5. **Compare** — Use the Streamlit dashboard, the Notebook Explorer, or the Intelligence Agent to explore the results. Let the audience ask their own questions. For "how do I improve?" follow-ups, open the project in Cortex Code.

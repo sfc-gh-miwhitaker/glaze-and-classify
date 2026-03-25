@@ -184,11 +184,12 @@ flowchart LR
 
 ## Explore the Results
 
-After deployment, three interfaces let you dig into the comparison:
+After deployment, four interfaces let you dig into the comparison:
 
 - **Streamlit Dashboard** — Overall accuracy KPIs, accuracy by market/language, and full side-by-side comparison detail. Navigate to **Projects > Streamlit** in Snowsight.
-- **Notebook Explorer** — Translate and classify any product name with `AI_TRANSLATE` + `AI_COMPLETE`, and ask the Intelligence Agent questions interactively. Navigate to **Projects > Notebooks** in Snowsight. Alternatively, open `notebook/glaze_classify_explorer.ipynb` from a [Git-synced Workspace](https://docs.snowflake.com/en/user-guide/ui-snowsight/workspaces-git).
-- **Intelligence Agent** — Ask natural language questions like *"Which products are misclassified by traditional SQL?"* or *"How does accuracy compare across languages?"* Navigate to **AI & ML > Snowflake Intelligence** in Snowsight.
+- **Notebook Explorer** — Translate and classify any product name with `AI_TRANSLATE` + `AI_COMPLETE`. Navigate to **Projects > Notebooks** in Snowsight. Alternatively, open `notebook/glaze_classify_explorer.ipynb` from a [Git-synced Workspace](https://docs.snowflake.com/en/user-guide/ui-snowsight/workspaces-git).
+- **Intelligence Agent** — *"What are the results?"* Ask natural language questions about classification data, accuracy, and market breakdowns. Navigate to **AI & ML > Snowflake Intelligence** in Snowsight.
+- **Cortex Code** — *"How do I improve?"* Get AI-assisted suggestions for improving prompts, optimizing SQL, and understanding costs. Open this repo in a [Workspace](https://docs.snowflake.com/en/user-guide/ui-snowsight/workspaces-git) and use [Cortex Code](https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code).
 
 ---
 
