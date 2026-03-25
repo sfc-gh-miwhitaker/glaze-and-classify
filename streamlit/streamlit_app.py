@@ -359,5 +359,7 @@ st.divider()
 st.caption(
     "**Glaze & Classify** | SE Community | "
     "Data: SNOWFLAKE_EXAMPLE.GLAZE_AND_CLASSIFY | "
-    "Powered by: Cortex AI_TRANSLATE, AI_COMPLETE, SPCS, Streamlit in Snowflake"
+    "Powered by: Cortex AI_TRANSLATE, AI_COMPLETE, SPCS, Streamlit in Snowflake | "
+    "Try the **Notebook Explorer** for interactive classify & agent chat "
+    "(Projects > Workspaces)"
 )

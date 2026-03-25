@@ -8,9 +8,15 @@ Navigate to **Projects > Streamlit** in Snowsight and open **Glaze & Classify**.
 
 - **Overall Accuracy KPIs** — Category-level and full-match accuracy for each approach
 - **Accuracy by Market** — Bar chart and table showing how each approach performs per market/language
-- **Misclassified Products** — Products where traditional SQL got it wrong (filterable by market)
-- **Full Comparison Detail** — Every product with all four predictions side by side
-- **Live Classify** — Type any product name and see Cortex classify it in real-time
+- **Full Comparison Detail** — Every product with all four predictions side by side, filterable by market, category, and errors only
+
+### Notebook Explorer
+
+Open **Projects > Workspaces** in Snowsight, create a workspace from this Git repository, then open `notebook/glaze_classify_explorer.ipynb`. The notebook provides:
+
+- **Live Classify** — Enter any product name in any language, run the cell, and see Cortex translate and classify it with structured JSON output
+- **Ask the Agent** — Change a question variable and re-run to query the Intelligence Agent interactively, with Markdown-rendered responses
+- **Raw SQL versions** — Copy-pasteable SQL equivalents for embedding in pipelines
 
 ### Intelligence Agent
 
@@ -69,4 +75,4 @@ When presenting this demo, walk through the approaches in order:
 
 4. **SPCS Vision** — Show the container service pattern. "When you need a specialized model that goes beyond what LLMs can do."
 
-5. **Compare** — Use the Streamlit dashboard or the Intelligence agent to explore the results. Let the audience ask their own questions.
+5. **Compare** — Use the Streamlit dashboard, the Notebook Explorer, or the Intelligence agent to explore the results. Let the audience ask their own questions.

@@ -8,7 +8,7 @@ Product classification showdown: four progressively sophisticated approaches to 
 - `teardown_all.sql` -- Complete cleanup
 - `sql/` -- Individual SQL scripts (numbered)
 - `streamlit/` -- Streamlit dashboard source (metrics, charts, comparison tables)
-- `notebook/` -- Snowflake Notebook for interactive classify + agent Q&A
+- `notebook/` -- Snowflake Notebook for interactive classify + agent Q&A (opened via Workspaces, not deployed via DDL)
 - `spcs/` -- Snowpark Container Services vision model (step 2: push-image.sh)
 - `diagrams/` -- Architecture diagrams (Mermaid)
 
@@ -37,4 +37,5 @@ Product classification showdown: four progressively sophisticated approaches to 
 - Keep deploy_all.sql + deploy_spcs.sql as the two SQL entry points
 - All new objects need COMMENT = 'DEMO: ... (Expires: 2026-07-01)'
 - SPCS components require Enterprise edition with CREATE COMPUTE POOL privilege
+- Notebook is accessed via Workspaces (Projects > Workspaces), not CREATE NOTEBOOK DDL
 - Classification accuracy comparison is the narrative arc

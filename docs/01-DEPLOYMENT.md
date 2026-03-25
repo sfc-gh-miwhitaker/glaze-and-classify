@@ -18,6 +18,8 @@
 
 This creates the schema, sample data, three text-based classification approaches, the Streamlit dashboard, and the Intelligence agent. The **last result** shows your image repository URL — copy it for step 2.
 
+> **Notebook Explorer:** The interactive notebook (`notebook/glaze_classify_explorer.ipynb`) is not deployed by this script. After deployment, open **Projects > Workspaces** in Snowsight, create a workspace from this Git repository, and open the notebook directly.
+
 ### Step 2 — Push the SPCS vision image (one-time)
 
 Requires [Podman](https://podman.io/) (free, Apache 2.0) or Docker:
