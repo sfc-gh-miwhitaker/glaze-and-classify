@@ -15,7 +15,6 @@ Navigate to **Projects > Streamlit** in Snowsight and open **Glaze & Classify**.
 Navigate to **Projects > Notebooks** in Snowsight and open **Glaze Classify Explorer**. Alternatively, open `notebook/glaze_classify_explorer.ipynb` from a [Git-synced Workspace](https://docs.snowflake.com/en/user-guide/ui-snowsight/workspaces-git). The notebook provides:
 
 - **Live Classify** — Enter any product name in any language, run the cell, and see Cortex translate and classify it with structured JSON output
-- **Ask the Agent** — Change a question variable and re-run to query the Intelligence Agent interactively, with Markdown-rendered responses
 - **Raw SQL versions** — Copy-pasteable SQL equivalents for embedding in pipelines
 
 ### Intelligence Agent
