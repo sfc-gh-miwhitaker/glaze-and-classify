@@ -5,7 +5,6 @@
 
 # Glaze & Classify
 
-<!-- TODO: Replace with an actual screenshot of the Streamlit dashboard -->
 ![Dashboard](docs/images/dashboard.png)
 
 Inspired by a real customer question: *"How do I translate and classify my international product catalog using only SQL?"*
