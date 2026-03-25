@@ -16,9 +16,9 @@
 3. Paste the entire contents of `deploy_all.sql`
 4. Click **Run All**
 
-This creates the schema, sample data, three text-based classification approaches, the Streamlit dashboard, and the Intelligence agent. The **last result** shows your image repository URL — copy it for step 2.
+This creates the schema, sample data, three text-based classification approaches, the Streamlit dashboard, the Notebook Explorer, and the Intelligence agent. The **last result** shows your image repository URL — copy it for step 2.
 
-> **Notebook Explorer:** The interactive notebook (`notebook/glaze_classify_explorer.ipynb`) is not deployed by this script. After deployment, open **Projects > Workspaces** in Snowsight, create a workspace from this Git repository, and open the notebook directly.
+> **Workspaces alternative:** The notebook is also available as `notebook/glaze_classify_explorer.ipynb` in this repo. You can open it from a [Git-synced Workspace](https://docs.snowflake.com/en/user-guide/ui-snowsight/workspaces-git) for the full Jupyter experience with file management and Git integration.
 
 ### Step 2 — Push the SPCS vision image (one-time)
 
@@ -69,6 +69,7 @@ This creates the vision service, classifies all image-only products, and shows t
 | `SV_GLAZE_PRODUCTS` | Semantic View | `SEMANTIC_MODELS` |
 | `GLAZE_CLASSIFIER_AGENT` | Agent | `GLAZE_AND_CLASSIFY` |
 | `GLAZE_CLASSIFY_DASHBOARD` | Streamlit | `GLAZE_AND_CLASSIFY` |
+| `GLAZE_CLASSIFY_EXPLORER` | Notebook | `GLAZE_AND_CLASSIFY` |
 | `GLAZE_VISION_SERVICE` | SPCS Service | `GLAZE_AND_CLASSIFY` |
 | `SFE_GLAZE_VISION_POOL` | Compute Pool | Account |
 | `CLASSIFY_IMAGE` | Function (SPCS) | `GLAZE_AND_CLASSIFY` |
@@ -83,7 +84,7 @@ This creates the vision service, classifies all image-only products, and shows t
 | Cortex Robust classification | ~3 minutes |
 | SPCS service startup | ~2 minutes |
 | Vision classification | ~1 minute |
-| Agent + Streamlit | ~30 seconds |
+| Agent + Streamlit + Notebook | ~30 seconds |
 | **Total** | **~9 minutes** |
 
 ## Troubleshooting

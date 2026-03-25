@@ -187,7 +187,7 @@ flowchart LR
 After deployment, three interfaces let you dig into the comparison:
 
 - **Streamlit Dashboard** — Overall accuracy KPIs, accuracy by market/language, and full side-by-side comparison detail. Navigate to **Projects > Streamlit** in Snowsight.
-- **Notebook Explorer** — Translate and classify any product name with `AI_TRANSLATE` + `AI_COMPLETE`, and ask the Intelligence Agent questions interactively. Open **Projects > Workspaces** in Snowsight, create a workspace from this Git repository, then open `notebook/glaze_classify_explorer.ipynb`.
+- **Notebook Explorer** — Translate and classify any product name with `AI_TRANSLATE` + `AI_COMPLETE`, and ask the Intelligence Agent questions interactively. Navigate to **Projects > Notebooks** in Snowsight. Alternatively, open `notebook/glaze_classify_explorer.ipynb` from a [Git-synced Workspace](https://docs.snowflake.com/en/user-guide/ui-snowsight/workspaces-git).
 - **Intelligence Agent** — Ask natural language questions like *"Which products are misclassified by traditional SQL?"* or *"How does accuracy compare across languages?"* Navigate to **AI & ML > Snowflake Intelligence** in Snowsight.
 
 ---
